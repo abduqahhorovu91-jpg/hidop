@@ -14,6 +14,8 @@ let selectedTargetUserId = "";
 let toastTimerId = null;
 let catalogRefreshTimerId = null;
 let catalogRefreshInFlight = false;
+const videoStatusCache = new Map();
+let activePreviewVideo = null;
 
 // Error handling for missing elements
 window.addEventListener('error', function(e) {
@@ -21,53 +23,48 @@ window.addEventListener('error', function(e) {
 });
 
 // Toggle video play/pause function
-function toggleVideo(button) {
+async function toggleVideo(button, event) {
+  event?.stopPropagation();
   const thumb = button.closest('.thumb');
-  const video = thumb.querySelector('video');
+  const video = thumb?.querySelector('video');
+  const card = thumb?.closest('.card');
+  const itemId = Number(card?.dataset.videoId || thumb?.dataset.videoId || 0);
+  const item = findItemById(itemId);
   
   if (video) {
     if (video.paused) {
-      // Optimize video loading
+      const streamState = await ensureVideoElementSource(video, item);
+      if (!streamState.playable) {
+        showTopToast(streamState.message || "Bu video webda ochilmaydi.");
+        return;
+      }
+
+      pauseOtherPreviewVideos(video);
       video.currentTime = 0;
-      
-      // Preload video for faster loading
-      video.preload = 'auto';
-      
-      // Set optimal loading strategy
-      video.load();
-      
-      // Try to play with optimizations
+      video.preload = 'metadata';
       const playPromise = video.play();
       
       if (playPromise !== undefined) {
         playPromise.then(() => {
+          activePreviewVideo = video;
           button.style.display = 'none';
-          console.log('Video playing successfully');
         }).catch(err => {
-          console.log('Video play error:', err);
-          
-          // Fallback strategies
           if (err.name === 'NotAllowedError') {
-            // Try muted autoplay
             video.muted = true;
             video.play().then(() => {
+              activePreviewVideo = video;
               button.style.display = 'none';
-              console.log('Video playing muted');
             });
-          } else if (err.name === 'NotSupportedError') {
-            console.log('Video format not supported');
           } else {
-            // Try with lower quality
-            video.style.width = '50%';
-            video.play().then(() => {
-              button.style.display = 'none';
-              video.style.width = '100%'; // Restore full size
-            });
+            showTopToast("Video ochilmadi. Uni botga yuborib ko'ring.");
           }
         });
       }
     } else {
       video.pause();
+      if (activePreviewVideo === video) {
+        activePreviewVideo = null;
+      }
       button.style.display = 'flex';
     }
   }
@@ -175,6 +172,149 @@ function buildVideoFileUrl(itemId) {
   return `${API_BASE_URL}/api/video/${encodeURIComponent(itemId)}/play`;
 }
 
+function normalizeApiUrl(url) {
+  const rawUrl = String(url || "").trim();
+  if (!rawUrl) return "";
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+  if (rawUrl.startsWith("/")) {
+    return `${API_BASE_URL}${rawUrl}`;
+  }
+  return `${API_BASE_URL}/${rawUrl.replace(/^\.?\//, "")}`;
+}
+
+function findItemById(itemId) {
+  if (!itemId) return null;
+  return [...catalogItems, ...savedItems].find((item) => Number(item.id) === Number(itemId)) || null;
+}
+
+function pauseOtherPreviewVideos(exceptVideo) {
+  document.querySelectorAll(".thumb video").forEach((video) => {
+    if (video === exceptVideo) {
+      return;
+    }
+    video.pause();
+    const thumb = video.closest(".thumb");
+    const button = thumb?.querySelector(".play-button");
+    if (button) {
+      button.style.display = "flex";
+    }
+  });
+}
+
+async function fetchVideoStatus(item, { force = false } = {}) {
+  if (!item?.id) {
+    return {
+      playable: false,
+      reason: "not_found",
+      message: "Video topilmadi.",
+      stream_url: "",
+    };
+  }
+
+  if (item.web_streamable === false) {
+    return {
+      playable: false,
+      reason: item.web_stream_error || "file_too_big",
+      message: item.web_stream_message || "Bu video webda ochilmaydi. Uni botga yuboring.",
+      stream_url: "",
+    };
+  }
+
+  if (!force && videoStatusCache.has(item.id)) {
+    return videoStatusCache.get(item.id);
+  }
+
+  const fallbackUrl = normalizeApiUrl(item.preview_url || buildVideoFileUrl(item.id));
+  if (item.web_stream_source === "external" && fallbackUrl) {
+    const result = {
+      playable: true,
+      reason: "",
+      message: "",
+      stream_url: fallbackUrl,
+    };
+    videoStatusCache.set(item.id, result);
+    return result;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/video/${encodeURIComponent(item.id)}/status`, {
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => ({}));
+    const result = {
+      playable: payload?.playable !== false,
+      reason: payload?.reason || "",
+      message: payload?.message || "",
+      stream_url: normalizeApiUrl(payload?.stream_url || fallbackUrl),
+    };
+
+    if (!response.ok) {
+      result.playable = false;
+    }
+
+    item.web_streamable = result.reason === "temporary_error" ? null : result.playable;
+    item.web_stream_error = result.reason;
+    item.web_stream_message = result.message;
+    if (result.stream_url) {
+      item.preview_url = result.stream_url;
+    }
+
+    if (result.reason === "temporary_error" && !result.playable) {
+      videoStatusCache.delete(item.id);
+    } else {
+      videoStatusCache.set(item.id, result);
+    }
+    return result;
+  } catch {
+    return {
+      playable: true,
+      reason: "",
+      message: "",
+      stream_url: fallbackUrl,
+    };
+  }
+}
+
+async function ensureVideoElementSource(video, item) {
+  if (video.dataset.ready === "true" && video.src) {
+    return {
+      playable: true,
+      reason: "",
+      message: "",
+      stream_url: video.src,
+    };
+  }
+
+  const status = await fetchVideoStatus(item);
+  if (!status.playable) {
+    return status;
+  }
+
+  const resolvedUrl = status.stream_url || normalizeApiUrl(video.dataset.src || "");
+  if (!resolvedUrl) {
+    return {
+      playable: false,
+      reason: "missing_file",
+      message: "Video manbasi topilmadi.",
+      stream_url: "",
+    };
+  }
+
+  video.src = resolvedUrl;
+  video.dataset.ready = "true";
+  video.preload = "metadata";
+  video.load();
+
+  return {
+    playable: true,
+    reason: "",
+    message: "",
+    stream_url: resolvedUrl,
+  };
+}
+
 function detectCategory(item) {
   const haystack = `${item.title || ""} ${item.comment || ""}`.toLowerCase();
   if (
@@ -226,8 +366,13 @@ async function loadItems() {
       duration: Number(item.duration || 0),
       ageLabel: item.ageLabel || "Kutubxonada",
       palette: item.palette || detectPalette(item),
-      preview_url: item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""),
+      preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
       added_at: item.added_at || "",
+      web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
+      web_stream_error: item.web_stream_error || "",
+      web_stream_message: item.web_stream_message || "",
+      web_stream_source: item.web_stream_source || "",
+      file_size: Number(item.file_size || 0),
     }));
     
     console.log("Processed catalog items:", catalogItems.length);
@@ -259,7 +404,12 @@ async function loadSavedItems() {
     const items = Array.isArray(payload?.items) ? payload.items : [];
     return items.map((item) => ({
       ...item,
-      preview_url: item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""),
+      preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
+      web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
+      web_stream_error: item.web_stream_error || "",
+      web_stream_message: item.web_stream_message || "",
+      web_stream_source: item.web_stream_source || "",
+      file_size: Number(item.file_size || 0),
     }));
   } catch {
     return [];
@@ -734,9 +884,7 @@ function renderLibrary() {
       deleteSavedVideo(item);
     });
     row.addEventListener("click", () => {
-      if (tg) {
-        tg.sendData(JSON.stringify({ type: "catalog_item", video_id: item.id, title: item.title }));
-      }
+      openVideoModal(item);
     });
     libraryListEl.appendChild(row);
   });
@@ -761,21 +909,21 @@ function render() {
   emptyStateEl.classList.add("is-hidden");
 
   ordered.forEach((item, index) => {
-    // Remove promo badge functionality
-    
     const duration = formatDuration(item.duration || 0);
     const category = item.category || detectCategory(item);
     const platformColor = getPlatformColor(category);
-    const ageLabel = "Yangi";
+    const canPreviewInCard = item.web_streamable !== false && Boolean(item.preview_url || item.id);
+    const previewUrl = normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""));
     const card = document.createElement("article");
     card.className = "card";
+    card.dataset.videoId = String(item.id || "");
     card.style.animationDelay = `${Math.min(260, index * 60)}ms`;
     card.innerHTML = `
-      <div class="thumb thumb--${item.palette || "night"}${item.preview_url ? " has-video" : ""}">
-        ${item.preview_url ? `<video src="${item.preview_url}" muted loop playsinline preload="none"></video>` : ""}
-        ${item.preview_url ? `<div class="play-button" onclick="toggleVideo(this)">▶</div>` : ""}
+      <div class="thumb thumb--${item.palette || "night"}${canPreviewInCard ? " has-video" : ""}" data-video-id="${item.id || ""}">
+        ${canPreviewInCard ? `<video data-src="${previewUrl}" muted loop playsinline preload="none"></video>` : ""}
+        ${canPreviewInCard ? `<div class="play-button" onclick="toggleVideo(this, event)">▶</div>` : `<div class="thumb__notice">Botda oching</div>`}
         <div class="thumb__label">${item.saved_name || item.title || "Sarlavha topilmadi"}</div>
-        <div class="thumb__badge">${formatDuration(item.duration)}</div>
+        <div class="thumb__badge">${duration}</div>
         <div class="thumb__platform" style="color:${platformColor}">
           <span class="thumb__platform-dot"></span>
           ${item.category || "Media"}
@@ -803,12 +951,35 @@ function render() {
       event.stopPropagation();
       deleteSavedVideo(item);
     });
+
+    const previewVideo = card.querySelector("video");
+    if (previewVideo) {
+      previewVideo.addEventListener("pause", () => {
+        const button = card.querySelector(".play-button");
+        if (button) {
+          button.style.display = "flex";
+        }
+      });
+      previewVideo.addEventListener("ended", () => {
+        const button = card.querySelector(".play-button");
+        if (button) {
+          button.style.display = "flex";
+        }
+      });
+      previewVideo.addEventListener("error", async () => {
+        const status = await fetchVideoStatus(item, { force: true });
+        if (!status.playable) {
+          previewVideo.removeAttribute("src");
+          previewVideo.dataset.ready = "false";
+          const button = card.querySelector(".play-button");
+          if (button) {
+            button.style.display = "flex";
+          }
+        }
+      });
+    }
+
     card.addEventListener("click", () => {
-      if (tg) {
-        tg.sendData(JSON.stringify({ type: "playlist_item", video_id: item.id, title: item.title }));
-      }
-      
-      // Open video in fullscreen modal
       openVideoModal(item);
     });
     playlistEl.appendChild(card);
@@ -917,6 +1088,19 @@ async function openVideoModal(item) {
     cursor: pointer;
   `;
 
+  const sendBtn = document.createElement('button');
+  sendBtn.textContent = 'Yuborish';
+  sendBtn.style.cssText = `
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: rgba(243, 179, 45, 0.92);
+    color: #101010;
+    font-weight: 800;
+    cursor: pointer;
+  `;
+
   const likeBtn = document.createElement('button');
   likeBtn.textContent = '👍 0';
   likeBtn.style.cssText = `
@@ -929,31 +1113,26 @@ async function openVideoModal(item) {
     font-weight: 700;
     cursor: pointer;
   `;
-  
-  const videoUrl = item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "");
 
-  if (videoUrl) {
-    video.src = videoUrl;
-    video.load();
-  } else {
-    // Fallback - show video info
-    video.style.display = 'none';
-    const info = document.createElement('div');
-    info.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: white;
-      font-size: 18px;
-    `;
-    info.textContent = `Video ID: ${item.id}\n${item.title || 'No title'}`;
-    videoContainer.appendChild(info);
-  }
+  const info = document.createElement('div');
+  info.style.cssText = `
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: white;
+    font-size: 18px;
+    text-align: center;
+    padding: 24px;
+    white-space: pre-line;
+  `;
+  info.textContent = "Video tayyorlanmoqda...";
+  videoContainer.appendChild(info);
   
   // Assemble modal
   videoContainer.appendChild(title);
   videoContainer.appendChild(closeBtn);
+  actionBar.appendChild(sendBtn);
   actionBar.appendChild(saveBtn);
   actionBar.appendChild(likeBtn);
   videoContainer.appendChild(actionBar);
@@ -988,6 +1167,11 @@ async function openVideoModal(item) {
       state.user_reaction === "likes" ? "rgba(60, 190, 120, 0.9)" : "rgba(255, 255, 255, 0.16)";
   };
 
+  sendBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    sendVideoToBot(item);
+  });
+
   saveBtn.addEventListener('click', async (event) => {
     event.stopPropagation();
     await saveVideoToProfile(item);
@@ -1001,11 +1185,21 @@ async function openVideoModal(item) {
 
   loadVideoReactionState(item).then(applyReactionState);
 
-  const playPromise = videoUrl ? video.play() : null;
-  if (playPromise && typeof playPromise.catch === 'function') {
-    playPromise.catch((error) => {
-      console.error('Modal video autoplay failed:', error);
-    });
+  const status = await fetchVideoStatus(item);
+  if (status.playable && status.stream_url) {
+    video.src = status.stream_url;
+    video.preload = 'metadata';
+    video.load();
+    info.remove();
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch((error) => {
+        console.error('Modal video autoplay failed:', error);
+      });
+    }
+  } else {
+    video.style.display = 'none';
+    info.textContent = status.message || `Video: ${item.title}\n\nBu video webda ochilmaydi.\n"Yuborish" tugmasi bilan botga yuboring.`;
   }
   
   // Cleanup on video end
@@ -1014,21 +1208,14 @@ async function openVideoModal(item) {
   });
   
   // Handle video load errors
-  video.addEventListener('error', () => {
-    console.error('Video loading error');
+  video.addEventListener('error', async () => {
+    const refreshedStatus = await fetchVideoStatus(item, { force: true });
     video.style.display = 'none';
-    const errorInfo = document.createElement('div');
-    errorInfo.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: white;
-      font-size: 18px;
-      text-align: center;
-    `;
-    errorInfo.textContent = `Video: ${item.title}\n\nVideo yuklanmadi\nTelegram bot orqali ko'ring`;
-    videoContainer.appendChild(errorInfo);
+    if (!videoContainer.contains(info)) {
+      videoContainer.appendChild(info);
+    }
+    info.textContent =
+      refreshedStatus.message || `Video: ${item.title}\n\nVideo yuklanmadi.\nUni botga yuborib ko'ring.`;
   });
 }
 

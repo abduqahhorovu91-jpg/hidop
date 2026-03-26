@@ -2,6 +2,7 @@ import logging
 import os
 import json
 import asyncio
+import ssl
 import threading
 import urllib.request as urllib_request
 import unicodedata
@@ -11,6 +12,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import quote_plus, urlparse
 
+import certifi
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 from flask_cors import CORS
@@ -23,6 +25,7 @@ from telegram import (
     InputTextMessageContent,
     Update,
 )
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -120,9 +123,31 @@ SEARCH_CACHE_MAX_SIZE = 200  # Increased cache size
 TITLE_INDEX: dict[str, list[dict]] = {}  # Pre-built index for first letters
 RUNTIME_BOOTSTRAPPED = False
 TELEGRAM_FILE_PATH_CACHE: dict[str, str] = {}
+TELEGRAM_FILE_SIZE_CACHE: dict[str, int] = {}
+TELEGRAM_FILE_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 THANKS_TEXT = "Bizdan foydalanganingiz uchun rahmat"
 SHARE_BROADCAST_TEXT = "BIZNI QO'LAB QUVATLASH UCHUN SHARE TUGMASINI BOSING"
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://hidop.onrender.com").strip()
+TELEGRAM_BOT_API_DOWNLOAD_LIMIT_BYTES = 20 * 1024 * 1024
+CANONICAL_WEBAPP_URL = "https://hidop.onrender.com"
+LEGACY_WEBAPP_HOSTS = {
+    "hide-tv87.onrender.com",
+}
+
+
+def normalize_webapp_url(raw_url: str) -> str:
+    candidate = raw_url.strip() or CANONICAL_WEBAPP_URL
+    try:
+        parsed = urlparse(candidate)
+    except Exception:
+        return CANONICAL_WEBAPP_URL
+    if parsed.netloc.lower() in LEGACY_WEBAPP_HOSTS:
+        return CANONICAL_WEBAPP_URL
+    if not parsed.scheme or not parsed.netloc:
+        return CANONICAL_WEBAPP_URL
+    return candidate
+
+
+WEBAPP_URL = normalize_webapp_url(os.getenv("WEBAPP_URL", CANONICAL_WEBAPP_URL))
 SMS_SELECT_MODE_KEY = "sms_select_mode"
 SMS_SELECT_OPTIONS_KEY = "sms_select_options"
 SMS_SELECT_ACTION_KEY = "sms_select_action"
@@ -352,7 +377,13 @@ def clear_search_cache() -> None:
 
 
 def add_video_to_catalog(
-    file_id: str, title: str, added_by: int, custom_id: int | None = None, comment: str = "", duration: int = 0
+    file_id: str,
+    title: str,
+    added_by: int,
+    custom_id: int | None = None,
+    comment: str = "",
+    duration: int = 0,
+    file_size: int = 0,
 ) -> int:
     items = VIDEO_CATALOG.get("items", [])
     if not isinstance(items, list):
@@ -376,6 +407,7 @@ def add_video_to_catalog(
         "added_at": datetime.now().isoformat(timespec="seconds"),
         "comment": comment,
         "duration": duration,
+        "file_size": file_size,
     }
     items.append(entry)
     VIDEO_CATALOG["items"] = items
@@ -607,17 +639,35 @@ async def send_video_to_user(target_user_id: int, video_id: int) -> None:
         )
 
 
-async def resolve_telegram_file_url(file_id: str) -> str:
+class VideoStreamUnavailableError(RuntimeError):
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+
+
+async def resolve_telegram_file_info(file_id: str) -> dict[str, object]:
     cached_url = TELEGRAM_FILE_PATH_CACHE.get(file_id)
     if cached_url:
-        return cached_url
+        return {
+            "url": cached_url,
+            "file_size": TELEGRAM_FILE_SIZE_CACHE.get(file_id),
+        }
 
     token = os.getenv("BOT_TOKEN", "").strip()
     if not token:
         raise RuntimeError("BOT_TOKEN topilmadi.")
 
     async with Bot(token=token) as bot:
-        telegram_file = await bot.get_file(file_id)
+        try:
+            telegram_file = await bot.get_file(file_id)
+        except BadRequest as exc:
+            if "too big" in str(exc).lower():
+                raise VideoStreamUnavailableError(
+                    "file_too_big",
+                    "Bu video katta bo'lgani uchun saytda to'liq ochilmaydi. Uni botga yuborib ko'ring.",
+                ) from exc
+            raise
 
     file_url = str(getattr(telegram_file, "file_path", "") or "").strip()
     if not file_url:
@@ -625,8 +675,202 @@ async def resolve_telegram_file_url(file_id: str) -> str:
     if not file_url.startswith(("http://", "https://")):
         file_url = f"https://api.telegram.org/file/bot{token}/{file_url.lstrip('/')}"
 
+    file_size = getattr(telegram_file, "file_size", None)
+    if isinstance(file_size, int) and file_size > 0:
+        TELEGRAM_FILE_SIZE_CACHE[file_id] = file_size
     TELEGRAM_FILE_PATH_CACHE[file_id] = file_url
-    return file_url
+    return {"url": file_url, "file_size": file_size}
+
+
+async def resolve_telegram_file_url(file_id: str) -> str:
+    file_info = await resolve_telegram_file_info(file_id)
+    return str(file_info["url"])
+
+
+def build_proxy_stream_url(video_id: int) -> str:
+    return f"/api/video/{video_id}/play"
+
+
+def get_video_stream_message(reason: str | None) -> str:
+    messages = {
+        "file_too_big": "Bu video katta bo'lgani uchun webda ochilmaydi. Uni botga yuboring.",
+        "missing_file": "Video fayli topilmadi.",
+        "temporary_error": "Video hozircha yuklanmadi. Keyinroq qayta urinib ko'ring.",
+        "not_found": "Video topilmadi.",
+    }
+    return messages.get(str(reason or ""), "Video yuklanmadi.")
+
+
+def update_video_stream_state(
+    video: dict[str, object],
+    *,
+    streamable: bool,
+    reason: str | None = None,
+    file_size: int | None = None,
+) -> None:
+    changed = False
+
+    if isinstance(file_size, int) and file_size > 0 and video.get("file_size") != file_size:
+        video["file_size"] = file_size
+        changed = True
+
+    if video.get("web_streamable") != streamable:
+        video["web_streamable"] = streamable
+        changed = True
+
+    if streamable:
+        if video.get("web_stream_error"):
+            video["web_stream_error"] = ""
+            changed = True
+    else:
+        normalized_reason = str(reason or "temporary_error")
+        if video.get("web_stream_error") != normalized_reason:
+            video["web_stream_error"] = normalized_reason
+            changed = True
+
+    if changed:
+        save_video_catalog()
+
+
+def build_video_stream_info(
+    video: dict[str, object], *, probe: bool = False
+) -> dict[str, object]:
+    video_id = parse_int(video.get("id"))
+    preview_url = str(video.get("preview_url", "") or video.get("stream_url", "") or "").strip()
+    if preview_url:
+        return {
+            "playable": True,
+            "reason": "",
+            "message": "",
+            "stream_url": preview_url,
+            "upstream_url": preview_url,
+            "source": "external",
+        }
+
+    if video_id is None:
+        return {
+            "playable": False,
+            "reason": "not_found",
+            "message": get_video_stream_message("not_found"),
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+        }
+
+    proxy_url = build_proxy_stream_url(video_id)
+    file_size = parse_int(video.get("file_size"))
+    if isinstance(file_size, int) and file_size > TELEGRAM_BOT_API_DOWNLOAD_LIMIT_BYTES:
+        update_video_stream_state(video, streamable=False, reason="file_too_big", file_size=file_size)
+        return {
+            "playable": False,
+            "reason": "file_too_big",
+            "message": get_video_stream_message("file_too_big"),
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+            "file_size": file_size,
+        }
+
+    if video.get("web_streamable") is False:
+        reason = str(video.get("web_stream_error", "") or "temporary_error")
+        return {
+            "playable": False,
+            "reason": reason,
+            "message": get_video_stream_message(reason),
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+            "file_size": file_size,
+        }
+
+    if not probe:
+        known_playable = video.get("web_streamable")
+        return {
+            "playable": known_playable if isinstance(known_playable, bool) else None,
+            "reason": str(video.get("web_stream_error", "") or ""),
+            "message": get_video_stream_message(video.get("web_stream_error")) if known_playable is False else "",
+            "stream_url": proxy_url,
+            "upstream_url": "",
+            "source": "telegram",
+            "file_size": file_size,
+        }
+
+    file_id = str(video.get("file_id", "")).strip()
+    if not file_id:
+        return {
+            "playable": False,
+            "reason": "missing_file",
+            "message": get_video_stream_message("missing_file"),
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+        }
+
+    try:
+        file_info = asyncio.run(resolve_telegram_file_info(file_id))
+    except VideoStreamUnavailableError as exc:
+        update_video_stream_state(video, streamable=False, reason=exc.reason)
+        return {
+            "playable": False,
+            "reason": exc.reason,
+            "message": exc.message,
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+        }
+    except Exception as exc:
+        logger.warning("Video stream holati aniqlanmadi (%s): %s", video_id, exc)
+        return {
+            "playable": False,
+            "reason": "temporary_error",
+            "message": get_video_stream_message("temporary_error"),
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+        }
+
+    resolved_file_size = parse_int(file_info.get("file_size"))
+    if isinstance(resolved_file_size, int) and resolved_file_size > TELEGRAM_BOT_API_DOWNLOAD_LIMIT_BYTES:
+        update_video_stream_state(
+            video,
+            streamable=False,
+            reason="file_too_big",
+            file_size=resolved_file_size,
+        )
+        return {
+            "playable": False,
+            "reason": "file_too_big",
+            "message": get_video_stream_message("file_too_big"),
+            "stream_url": "",
+            "upstream_url": "",
+            "source": "telegram",
+            "file_size": resolved_file_size,
+        }
+
+    update_video_stream_state(video, streamable=True, file_size=resolved_file_size)
+    return {
+        "playable": True,
+        "reason": "",
+        "message": "",
+        "stream_url": proxy_url,
+        "upstream_url": str(file_info.get("url", "") or ""),
+        "source": "telegram",
+        "file_size": resolved_file_size,
+    }
+
+
+def serialize_video_item(video: dict[str, object]) -> dict[str, object]:
+    payload = dict(video)
+    stream_info = build_video_stream_info(video, probe=False)
+    payload["preview_url"] = str(stream_info.get("stream_url", "") or "")
+    payload["web_streamable"] = stream_info.get("playable")
+    payload["web_stream_error"] = str(stream_info.get("reason", "") or "")
+    payload["web_stream_message"] = str(stream_info.get("message", "") or "")
+    payload["web_stream_source"] = str(stream_info.get("source", "") or "")
+    file_size = stream_info.get("file_size")
+    if isinstance(file_size, int) and file_size > 0:
+        payload["file_size"] = file_size
+    return payload
 
 
 web_app = Flask(__name__)
@@ -646,7 +890,7 @@ class BackgroundWebServer:
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._server = make_server(self.host, self.port, self.flask_app)
+        self._server = make_server(self.host, self.port, self.flask_app, threaded=True)
         self._thread = threading.Thread(
             target=self._server.serve_forever,
             name=self.name,
@@ -693,7 +937,12 @@ def serve_styles():
 def get_videos():
     try:
         items = VIDEO_CATALOG.get("items", [])
-        return jsonify({"success": True, "items": items})
+        serialized_items = [
+            serialize_video_item(item)
+            for item in items
+            if isinstance(item, dict)
+        ]
+        return jsonify({"success": True, "items": serialized_items})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)})
 
@@ -714,7 +963,12 @@ def get_saved_videos():
     owner_id = parse_int(raw_owner_id)
     if owner_id is None:
         return jsonify({"success": False, "error": "owner_id required"}), 400
-    return jsonify({"success": True, "items": get_saved_videos_for_owner(owner_id)})
+    items = [
+        serialize_video_item(item)
+        for item in get_saved_videos_for_owner(owner_id)
+        if isinstance(item, dict)
+    ]
+    return jsonify({"success": True, "items": items})
 
 
 @web_app.route("/api/send-video", methods=["POST"])
@@ -818,7 +1072,7 @@ def get_video(video_id: int):
     try:
         video = get_video_by_number(video_id)
         if video:
-            return jsonify({"success": True, "video": video})
+            return jsonify({"success": True, "video": serialize_video_item(video)})
         return jsonify({"success": False, "error": "Video not found"}), 404
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)})
@@ -829,18 +1083,39 @@ def build_video_file_response(video_id: int):
     if not video:
         return jsonify({"success": False, "error": "Video not found"}), 404
 
-    file_id = str(video.get("file_id", "")).strip()
-    if not file_id:
-        return jsonify({"success": False, "error": "Video file not found"}), 404
+    stream_info = build_video_stream_info(video, probe=True)
+    if stream_info.get("playable") is not True:
+        reason = str(stream_info.get("reason", "") or "temporary_error")
+        status_code = 409 if reason == "file_too_big" else 502
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": str(stream_info.get("message", "") or get_video_stream_message(reason)),
+                    "reason": reason,
+                }
+            ),
+            status_code,
+        )
 
     try:
-        file_url = asyncio.run(resolve_telegram_file_url(file_id))
+        file_url = str(stream_info.get("upstream_url", "") or "")
+        if not file_url:
+            return jsonify({"success": False, "error": "Video file not found"}), 404
+
         upstream_headers = {}
         range_header = request.headers.get("Range")
         if range_header:
             upstream_headers["Range"] = range_header
-        upstream_request = urllib_request.Request(file_url, headers=upstream_headers)
-        upstream = urllib_request.urlopen(upstream_request, timeout=30)
+        if request.method == "HEAD":
+            upstream_request = urllib_request.Request(file_url, headers=upstream_headers, method="HEAD")
+        else:
+            upstream_request = urllib_request.Request(file_url, headers=upstream_headers)
+        upstream = urllib_request.urlopen(
+            upstream_request,
+            timeout=60,
+            context=TELEGRAM_FILE_SSL_CONTEXT,
+        )
     except Exception as exc:
         logger.exception("Video proxy xatoligi (%s): %s", video_id, exc)
         return jsonify({"success": False, "error": "Video yuklanmadi"}), 502
@@ -858,6 +1133,7 @@ def build_video_file_response(video_id: int):
         header_value = upstream.headers.get(header)
         if header_value:
             response.headers[header] = header_value
+    response.headers.setdefault("Accept-Ranges", "bytes")
     response.headers["Cache-Control"] = "private, max-age=300"
 
     if request.method == "HEAD":
@@ -875,6 +1151,7 @@ def build_video_file_response(video_id: int):
             upstream.close()
 
     response.response = stream_with_context(generate())
+    response.direct_passthrough = True
     return response
 
 
@@ -892,17 +1169,46 @@ def play_video(video_id: int):
     return build_video_file_response(video_id)
 
 
+@web_app.route("/api/video/<int:video_id>/status")
+def video_status(video_id: int):
+    video = get_video_by_number(video_id)
+    if not video:
+        return jsonify({"success": False, "error": "Video not found"}), 404
+
+    probe = request.args.get("probe", "1") != "0"
+    stream_info = build_video_stream_info(video, probe=probe)
+    status_code = 200 if stream_info.get("playable") is not False else 409
+    return (
+        jsonify(
+            {
+                "success": stream_info.get("playable") is not False,
+                "playable": stream_info.get("playable"),
+                "reason": stream_info.get("reason"),
+                "message": stream_info.get("message"),
+                "stream_url": stream_info.get("stream_url"),
+                "source": stream_info.get("source"),
+                "file_size": stream_info.get("file_size"),
+            }
+        ),
+        status_code,
+    )
+
+
 @web_app.route("/api/video/<int:video_id>/stream")
 def stream_video(video_id: int):
     try:
         video = get_video_by_number(video_id)
         if not video:
             return jsonify({"success": False, "error": "Video not found"}), 404
+        stream_info = build_video_stream_info(video, probe=False)
         return jsonify(
             {
                 "success": True,
-                "video": video,
-                "stream_url": f"/api/video/{video_id}/play",
+                "video": serialize_video_item(video),
+                "stream_url": stream_info.get("stream_url", ""),
+                "playable": stream_info.get("playable"),
+                "reason": stream_info.get("reason", ""),
+                "message": stream_info.get("message", ""),
             }
         )
     except Exception as exc:
@@ -2486,6 +2792,7 @@ async def handle_admin_video_upload(
     context.user_data[UPLOAD_VIDEO_STATE_KEY] = {
         "file_id": message.video.file_id,
         "duration": message.video.duration,
+        "file_size": message.video.file_size,
         "stage": "await_title",
     }
     await message.reply_text(t(context, "upload_video_name_prompt"))
@@ -4250,6 +4557,7 @@ async def handle_upload_video_name(
         file_id = str(state.get("file_id", "")).strip()
         comment = str(state.get("comment", "")).strip()
         duration = int(state.get("duration", 0))
+        file_size = int(state.get("file_size", 0))
         custom_id = state.get("custom_id")  # May be None for auto-generated ID
         try:
             if custom_id:
@@ -4259,7 +4567,8 @@ async def handle_upload_video_name(
                     added_by=update.effective_user.id,
                     custom_id=custom_id,
                     comment=comment,
-                    duration=duration
+                    duration=duration,
+                    file_size=file_size,
                 )
             else:
                 number = add_video_to_catalog(
@@ -4267,7 +4576,8 @@ async def handle_upload_video_name(
                     title=title,
                     added_by=update.effective_user.id,
                     comment=comment,
-                    duration=duration
+                    duration=duration,
+                    file_size=file_size,
                 )
             context.user_data.pop(UPLOAD_VIDEO_STATE_KEY, None)
             await message.reply_text(f"Video muvaffaqiyatli saqlandi! 📥\nVideo ID: {number}\nNomi: {title}\nComment: {comment}")
