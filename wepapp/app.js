@@ -98,16 +98,6 @@ if (tg) {
   tg.setBackgroundColor("#102318");
 }
 
-// Auto-save Telegram user ID if available
-if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-  const telegramUserId = tg.initDataUnsafe.user.id.toString();
-  if (telegramUserId) {
-    selectedTargetUserId = telegramUserId;
-    localStorage.setItem(TARGET_USER_STORAGE_KEY, telegramUserId);
-    console.log("Telegram user ID auto-saved:", telegramUserId);
-  }
-}
-
 const playlistEl = document.getElementById("playlist");
 const filtersEl = document.getElementById("filters");
 const statsEl = document.getElementById("stats");
@@ -129,13 +119,6 @@ const profileButtonEl = document.querySelector(".telegram-bar__profile");
 const profileInputEl = document.getElementById("profileInput");
 const profileSubmitEl = document.getElementById("profileSubmit");
 const topToastEl = document.getElementById("topToast");
-
-// Check URL parameters for auto-fill ID
-const urlParams = new URLSearchParams(window.location.search);
-const autoId = urlParams.get('id');
-if (autoId && profileInputEl) {
-  profileInputEl.value = autoId;
-}
 
 const demoItems = [
   {
