@@ -4,14 +4,12 @@ const API_BASE_URL = IS_LOCAL_HOST
   ? `http://127.0.0.1:8000`
   : ""; // Empty string means same origin (current domain)
 const TARGET_USER_STORAGE_KEY = "hidop_target_user_id";
-const categoryOrder = ["HOME", "Like", "Ombor"];
+const categoryOrder = ["HOME", "Ombor"];
 let allItems = [];
 let activeCategory = "HOME";
 let activeQuery = "";
 let catalogItems = [];
 let savedItems = [];
-let likedItems = [];
-let dislikedItems = [];
 let selectedTargetUserId = "";
 let toastTimerId = null;
 
@@ -254,61 +252,6 @@ async function loadItems() {
     console.log("Using demo items as fallback");
     catalogItems = [...demoItems];
     return demoItems;
-  }
-}
-
-async function loadLikedItems() {
-  try {
-    const liked = localStorage.getItem('hidop_liked_items');
-    return liked ? JSON.parse(liked) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function loadDislikedItems() {
-  try {
-    const disliked = localStorage.getItem('hidop_disliked_items');
-    return disliked ? JSON.parse(disliked) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function refreshLikedItems() {
-  likedItems = await loadLikedItems();
-}
-
-async function refreshDislikedItems() {
-  dislikedItems = await loadDislikedItems();
-}
-
-function saveLikedItems() {
-  try {
-    localStorage.setItem('hidop_liked_items', JSON.stringify(likedItems));
-  } catch {
-    // Ignore storage issues
-  }
-}
-
-function isLiked(itemId) {
-  return likedItems.includes(Number(itemId));
-}
-
-function likeVideo(itemId) {
-  const id = Number(itemId);
-  if (!isLiked(id)) {
-    likedItems.push(id);
-    saveLikedItems();
-  }
-}
-
-function removeLike(itemId) {
-  const id = Number(itemId);
-  const index = likedItems.indexOf(id);
-  if (index > -1) {
-    likedItems.splice(index, 1);
-    saveLikedItems();
   }
 }
 
@@ -607,8 +550,6 @@ function renderLibrary() {
   let sourceItems;
   if (activeCategory === "Ombor") {
     sourceItems = savedItems;
-  } else if (activeCategory === "Like") {
-    sourceItems = catalogItems.filter(item => isLiked(item.id));
   } else {
     sourceItems = catalogItems;
   }
@@ -628,9 +569,6 @@ function renderLibrary() {
     } else {
       libraryUserInfoEl.style.display = "none";
     }
-  } else if (activeCategory === "Like") {
-    libraryTitleEl.textContent = "Yoqilgan videolar ❤️";
-    libraryUserInfoEl.style.display = "none";
   } else {
     libraryTitleEl.textContent = "Botga qo'shilgan videolar";
     libraryUserInfoEl.style.display = "none";
@@ -675,8 +613,6 @@ function render() {
   let sourceItems;
   if (activeCategory === "Ombor") {
     sourceItems = savedItems;
-  } else if (activeCategory === "Like") {
-    sourceItems = allItems.filter(item => isLiked(item.id));
   } else {
     sourceItems = allItems;
   }
@@ -718,12 +654,8 @@ function render() {
           <div class="meta__top">
             <h3>${item.saved_name || item.title || "Sarlavha topilmadi"}</h3>
             <div class="meta__actions">
-              ${activeCategory === "HOME" ? `
-                <button class="like-button ${isLiked(item.id) ? 'liked' : ''}" type="button">❤️</button>
-              ` : ''}
               <button class="send-button" type="button">Yuborish</button>
               ${activeCategory === "Ombor" ? '<button class="delete-button" type="button">O\'chirish</button>' : ""}
-              ${activeCategory === "Like" ? '<button class="remove-like-button" type="button">Olib tashlash</button>' : ""}
             </div>
           </div>
           <p>${item.comment || item.category} • ${item.ageLabel}</p>
@@ -734,23 +666,9 @@ function render() {
       event.stopPropagation();
       sendVideoToBot(item);
     });
-    card.querySelector(".like-button")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      likeVideo(item.id);
-      render();
-      renderLibrary();
-      showTopToast("yoqdi ❤️");
-    });
     card.querySelector(".delete-button")?.addEventListener("click", (event) => {
       event.stopPropagation();
       deleteSavedVideo(item);
-    });
-    card.querySelector(".remove-like-button")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      removeLike(item.id);
-      render();
-      renderLibrary();
-      showTopToast("yoqish bekor qilindi");
     });
     card.addEventListener("click", () => {
       if (tg) {
@@ -1039,7 +957,6 @@ async function initializeApp() {
   allItems = await loadItems();
   
   await refreshSavedItems();
-  await refreshLikedItems();
   
   buildStats(allItems);
   buildFilters(allItems);
