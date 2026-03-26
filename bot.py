@@ -3,6 +3,7 @@ import os
 import json
 import asyncio
 import ssl
+import shutil
 import threading
 import urllib.request as urllib_request
 import unicodedata
@@ -37,6 +38,51 @@ from telegram.ext import (
 )
 from werkzeug.serving import make_server
 from yt_dlp import YoutubeDL
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+DEFAULT_DATA_DIR = BASE_DIR
+DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
+
+
+def resolve_data_dir(raw_value: str) -> Path:
+    if not raw_value:
+        return DEFAULT_DATA_DIR
+    candidate = Path(raw_value).expanduser()
+    if not candidate.is_absolute():
+        candidate = BASE_DIR / candidate
+    return candidate
+
+
+DATA_DIR = resolve_data_dir(DATA_DIR_ENV)
+DATA_FILES = (
+    "users.json",
+    "videos.json",
+    "uploaders.json",
+    "saved_videos.json",
+    "video_reactions.json",
+    "user_reactions.json",
+    "monthly_reactions.json",
+)
+
+
+def ensure_data_dir() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if DATA_DIR == BASE_DIR:
+        return
+
+    for filename in DATA_FILES:
+        source = BASE_DIR / filename
+        target = DATA_DIR / filename
+        if target.exists() or not source.exists():
+            continue
+        shutil.copy2(source, target)
+
+
+def data_file(filename: str) -> Path:
+    ensure_data_dir()
+    return DATA_DIR / filename
+
 # Database functions (inline since shared_db was removed)
 def db_load_saved_videos():
     try:
@@ -85,9 +131,6 @@ def db_save_video_catalog(data):
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.warning(f"Error saving video catalog: {e}")
-
-load_dotenv()
-
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
@@ -102,20 +145,20 @@ NOTIFIED_NEW_USERS = set()
 LAST_VIDEO_FILE_ID_BY_USER: dict[int, str] = {}
 MAX_VIDEO_BYTES = 49 * 1024 * 1024
 FAST_VIDEO_FORMAT = "b[ext=mp4][height<=480]/b[height<=480]/b[ext=mp4]/b"
-USERS_FILE = Path("users.json")
+USERS_FILE = data_file("users.json")
 USERS: dict[int, dict[str, str]] = {}
-VIDEO_CATALOG_FILE = Path("videos.json")
+VIDEO_CATALOG_FILE = data_file("videos.json")
 VIDEO_CATALOG: dict[str, object] = {"next_id": 1, "items": []}
 VIDEO_ADMIN_ID = 8239140931
-UPLOADERS_FILE = Path("uploaders.json")
+UPLOADERS_FILE = data_file("uploaders.json")
 VIDEO_UPLOADERS: set[int] = set()
-SAVED_VIDEOS_FILE = Path("saved_videos.json")
+SAVED_VIDEOS_FILE = data_file("saved_videos.json")
 SAVED_VIDEOS: dict[int, list[dict[str, object]]] = {}
-VIDEO_REACTIONS_FILE = Path("video_reactions.json")
+VIDEO_REACTIONS_FILE = data_file("video_reactions.json")
 VIDEO_REACTIONS: dict[int, dict[str, int]] = {}
-USER_REACTIONS_FILE = Path("user_reactions.json")
+USER_REACTIONS_FILE = data_file("user_reactions.json")
 USER_REACTIONS: dict[int, dict[int, str]] = {}
-MONTHLY_REACTIONS_FILE = Path("monthly_reactions.json")
+MONTHLY_REACTIONS_FILE = data_file("monthly_reactions.json")
 MONTHLY_REACTIONS: dict[str, dict[str, dict[str, int]]] = {}
 # Search optimization constants
 SEARCH_CACHE: dict[str, list[dict]] = {}
