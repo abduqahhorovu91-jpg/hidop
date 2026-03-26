@@ -172,7 +172,7 @@ function formatDuration(seconds = 0) {
 }
 
 function buildVideoFileUrl(itemId) {
-  return `${API_BASE_URL}/api/video-file?video_id=${encodeURIComponent(itemId)}`;
+  return `${API_BASE_URL}/api/video/${encodeURIComponent(itemId)}/play`;
 }
 
 function detectCategory(item) {
@@ -226,7 +226,7 @@ async function loadItems() {
       duration: Number(item.duration || 0),
       ageLabel: item.ageLabel || "Kutubxonada",
       palette: item.palette || detectPalette(item),
-      preview_url: item.preview_url || "",
+      preview_url: item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""),
       added_at: item.added_at || "",
     }));
     
@@ -256,7 +256,11 @@ async function loadSavedItems() {
       throw new Error("saved videos topilmadi");
     }
     const payload = await response.json();
-    return Array.isArray(payload?.items) ? payload.items : [];
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    return items.map((item) => ({
+      ...item,
+      preview_url: item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""),
+    }));
   } catch {
     return [];
   }
@@ -851,6 +855,10 @@ async function openVideoModal(item) {
   video.controls = true;
   video.autoplay = true;
   video.muted = false;
+  video.preload = 'auto';
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
   
   // Create title
   const title = document.createElement('div');
@@ -926,6 +934,7 @@ async function openVideoModal(item) {
 
   if (videoUrl) {
     video.src = videoUrl;
+    video.load();
   } else {
     // Fallback - show video info
     video.style.display = 'none';
@@ -991,6 +1000,13 @@ async function openVideoModal(item) {
   });
 
   loadVideoReactionState(item).then(applyReactionState);
+
+  const playPromise = videoUrl ? video.play() : null;
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch((error) => {
+      console.error('Modal video autoplay failed:', error);
+    });
+  }
   
   // Cleanup on video end
   video.addEventListener('ended', () => {
