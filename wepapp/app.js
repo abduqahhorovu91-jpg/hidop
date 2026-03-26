@@ -12,6 +12,8 @@ let catalogItems = [];
 let savedItems = [];
 let selectedTargetUserId = "";
 let toastTimerId = null;
+let catalogRefreshTimerId = null;
+let catalogRefreshInFlight = false;
 
 // Error handling for missing elements
 window.addEventListener('error', function(e) {
@@ -225,6 +227,7 @@ async function loadItems() {
       ageLabel: item.ageLabel || "Kutubxonada",
       palette: item.palette || detectPalette(item),
       preview_url: item.preview_url || "",
+      added_at: item.added_at || "",
     }));
     
     console.log("Processed catalog items:", catalogItems.length);
@@ -314,6 +317,42 @@ function buildFilters(items) {
     });
     filtersEl.appendChild(button);
   });
+}
+
+function refreshView() {
+  buildStats(allItems);
+  buildFilters(allItems);
+  render();
+  renderLibrary();
+}
+
+async function refreshCatalogView() {
+  if (catalogRefreshInFlight) {
+    return;
+  }
+
+  catalogRefreshInFlight = true;
+  try {
+    allItems = await loadItems();
+    if (selectedTargetUserId) {
+      await refreshSavedItems();
+    }
+    refreshView();
+  } finally {
+    catalogRefreshInFlight = false;
+  }
+}
+
+function startCatalogAutoRefresh() {
+  if (catalogRefreshTimerId) {
+    return;
+  }
+
+  catalogRefreshTimerId = window.setInterval(() => {
+    refreshCatalogView().catch((error) => {
+      console.error("Catalog auto-refresh failed:", error);
+    });
+  }, 20000);
 }
 
 function getPlatformColor(category) {
@@ -412,6 +451,103 @@ function deleteSavedVideo(item) {
     });
 }
 
+function ensureTargetUserId() {
+  if (selectedTargetUserId) {
+    return selectedTargetUserId;
+  }
+  openProfileModal();
+  profileInputEl?.focus();
+  return "";
+}
+
+async function saveVideoToProfile(item) {
+  const ownerId = ensureTargetUserId();
+  if (!ownerId || !item?.id) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/save-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        owner_id: ownerId,
+        video_id: item.id,
+      }),
+    });
+    const result = await response.json();
+    if (!result?.ok) {
+      window.alert(result?.message || result?.error || "Video saqlanmadi.");
+      return false;
+    }
+    await refreshSavedItems();
+    render();
+    renderLibrary();
+    showTopToast(result?.already_saved ? "allaqachon saqlangan ❤️" : "saqlandi ✅");
+    return true;
+  } catch {
+    window.alert("Video saqlashda xatolik bo'ldi.");
+    return false;
+  }
+}
+
+async function loadVideoReactionState(item) {
+  if (!item?.id) {
+    return { likes: 0, dislikes: 0, user_reaction: null };
+  }
+
+  const params = new URLSearchParams({ video_id: String(item.id) });
+  if (selectedTargetUserId) {
+    params.set("user_id", selectedTargetUserId);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/video-reactions?${params.toString()}`, {
+      cache: "no-store",
+    });
+    const result = await response.json();
+    if (!result?.ok) {
+      return { likes: 0, dislikes: 0, user_reaction: null };
+    }
+    return {
+      likes: Number(result.likes || 0),
+      dislikes: Number(result.dislikes || 0),
+      user_reaction: result.user_reaction || null,
+    };
+  } catch {
+    return { likes: 0, dislikes: 0, user_reaction: null };
+  }
+}
+
+async function likeVideoFromModal(item) {
+  const ownerId = ensureTargetUserId();
+  if (!ownerId || !item?.id) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/react-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: ownerId,
+        video_id: item.id,
+        reaction: "likes",
+      }),
+    });
+    const result = await response.json();
+    if (!result?.ok) {
+      window.alert(result?.message || result?.error || "Like qo'yilmadi.");
+      return null;
+    }
+    showTopToast("yoqtirildi 👍");
+    return result;
+  } catch {
+    window.alert("Like qo'yishda xatolik bo'ldi.");
+    return null;
+  }
+}
+
 function matchesSearch(item) {
   if (!activeQuery) return true;
   const haystack = [
@@ -496,6 +632,16 @@ function sortBySearchRelevance(items) {
   return items.slice().sort((left, right) => {
     const scoreDiff = getSearchScore(right) - getSearchScore(left);
     if (scoreDiff !== 0) return scoreDiff;
+
+    if (!activeQuery) {
+      const leftAddedAt = Date.parse(left.added_at || "") || 0;
+      const rightAddedAt = Date.parse(right.added_at || "") || 0;
+      const addedAtDiff = rightAddedAt - leftAddedAt;
+      if (addedAtDiff !== 0) return addedAtDiff;
+
+      const idDiff = Number(right.id || 0) - Number(left.id || 0);
+      if (idDiff !== 0) return idDiff;
+    }
 
     const leftTitle = normalizeSearchText(left.saved_name || left.title || "");
     const rightTitle = normalizeSearchText(right.saved_name || right.title || "");
@@ -738,6 +884,43 @@ async function openVideoModal(item) {
     cursor: pointer;
     z-index: 10;
   `;
+
+  const actionBar = document.createElement('div');
+  actionBar.style.cssText = `
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    gap: 10px;
+    z-index: 10;
+  `;
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Saqlash 📥';
+  saveBtn.style.cssText = `
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.16);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+  `;
+
+  const likeBtn = document.createElement('button');
+  likeBtn.textContent = '👍 0';
+  likeBtn.style.cssText = `
+    min-width: 120px;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.16);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+  `;
   
   const videoUrl = item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "");
 
@@ -762,6 +945,9 @@ async function openVideoModal(item) {
   // Assemble modal
   videoContainer.appendChild(title);
   videoContainer.appendChild(closeBtn);
+  actionBar.appendChild(saveBtn);
+  actionBar.appendChild(likeBtn);
+  videoContainer.appendChild(actionBar);
   videoContainer.appendChild(video);
   modal.appendChild(videoContainer);
   
@@ -785,6 +971,26 @@ async function openVideoModal(item) {
   
   // Add to DOM
   document.body.appendChild(modal);
+
+  const applyReactionState = (state) => {
+    if (!state) return;
+    likeBtn.textContent = `👍 ${Number(state.likes || 0)}`;
+    likeBtn.style.background =
+      state.user_reaction === "likes" ? "rgba(60, 190, 120, 0.9)" : "rgba(255, 255, 255, 0.16)";
+  };
+
+  saveBtn.addEventListener('click', async (event) => {
+    event.stopPropagation();
+    await saveVideoToProfile(item);
+  });
+
+  likeBtn.addEventListener('click', async (event) => {
+    event.stopPropagation();
+    const state = await likeVideoFromModal(item);
+    applyReactionState(state);
+  });
+
+  loadVideoReactionState(item).then(applyReactionState);
   
   // Cleanup on video end
   video.addEventListener('ended', () => {
@@ -936,15 +1142,12 @@ changeUserBtnEl?.addEventListener("click", () => {
 // Initialize the app
 async function initializeApp() {
   loadStoredTargetUserId();
-  
+
   allItems = await loadItems();
-  
   await refreshSavedItems();
-  
-  buildStats(allItems);
-  buildFilters(allItems);
-  render();
-  renderLibrary();
+
+  refreshView();
+  startCatalogAutoRefresh();
 }
 
 // Start the app when DOM is ready
@@ -953,3 +1156,18 @@ if (document.readyState === 'loading') {
 } else {
   initializeApp();
 }
+
+window.addEventListener("focus", () => {
+  refreshCatalogView().catch((error) => {
+    console.error("Catalog focus refresh failed:", error);
+  });
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    return;
+  }
+  refreshCatalogView().catch((error) => {
+    console.error("Catalog visibility refresh failed:", error);
+  });
+});

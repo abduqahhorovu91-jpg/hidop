@@ -22,7 +22,6 @@ from telegram import (
     InlineQueryResultCachedVideo,
     InputTextMessageContent,
     Update,
-    WebAppInfo,
 )
 from telegram.ext import (
     Application,
@@ -757,6 +756,63 @@ def delete_saved_video_api():
     )
 
 
+@web_app.route("/api/save-video", methods=["POST"])
+def save_video_api():
+    payload = request.get_json(silent=True) or {}
+    owner_id = parse_int(payload.get("owner_id") or payload.get("user_id"))
+    video_id = parse_int(payload.get("video_id"))
+
+    if owner_id is None or video_id is None:
+        return jsonify({"ok": False, "error": "owner_id va video_id kerak"}), 400
+
+    video = get_video_by_number(video_id)
+    if not video:
+        return jsonify({"ok": False, "error": "Video topilmadi"}), 404
+
+    video_title = str(video.get("title", "")).strip() or f"Video {video_id}"
+    _, saved_id = add_saved_video(owner_id, video_id, video_title)
+
+    if saved_id is None:
+        return jsonify({"ok": True, "already_saved": True, "message": "Video allaqachon saqlangan ❤️"})
+
+    return jsonify({"ok": True, "saved_id": saved_id, "message": "Video saqlandi ✅"})
+
+
+@web_app.route("/api/video-reactions")
+def video_reactions_api():
+    video_id = parse_int(request.args.get("video_id"))
+    user_id = parse_int(request.args.get("user_id"))
+
+    if video_id is None:
+        return jsonify({"ok": False, "error": "video_id kerak"}), 400
+
+    return jsonify(
+        {
+            "ok": True,
+            "likes": get_video_reaction_count(video_id, "likes"),
+            "dislikes": get_video_reaction_count(video_id, "dislikes"),
+            "user_reaction": get_user_reaction(user_id, video_id) if user_id is not None else None,
+        }
+    )
+
+
+@web_app.route("/api/react-video", methods=["POST"])
+def react_video_api():
+    payload = request.get_json(silent=True) or {}
+    user_id = parse_int(payload.get("user_id") or payload.get("owner_id"))
+    video_id = parse_int(payload.get("video_id"))
+    reaction_type = str(payload.get("reaction") or "").strip().lower()
+
+    if user_id is None or video_id is None:
+        return jsonify({"ok": False, "error": "user_id va video_id kerak"}), 400
+
+    if reaction_type not in {"likes", "dislikes", "none"}:
+        return jsonify({"ok": False, "error": "reaction noto'g'ri"}), 400
+
+    result = set_video_reaction_state(video_id, user_id, reaction_type)
+    return jsonify({"ok": True, **result})
+
+
 @web_app.route("/api/video/<int:video_id>")
 def get_video(video_id: int):
     try:
@@ -1185,9 +1241,53 @@ def get_video_reaction_count(video_id: int, reaction_type: str) -> int:
 
 def get_user_reaction(user_id: int, video_id: int) -> str | None:
     """Get user's reaction for a specific video"""
-    if user_id not in USER_REACTIONS:
+    try:
+        data = json.loads(USER_REACTIONS_FILE.read_text(encoding="utf-8"))
+        video_entry = data.get(str(video_id), {})
+        user_id_text = str(user_id)
+        if user_id_text in video_entry.get("likes", []):
+            return "likes"
+        if user_id_text in video_entry.get("dislikes", []):
+            return "dislikes"
+    except (FileNotFoundError, json.JSONDecodeError, AttributeError):
         return None
-    return USER_REACTIONS[user_id].get(video_id)
+    return None
+
+
+def set_video_reaction_state(video_id: int, user_id: int, reaction_type: str) -> dict[str, int | str | None]:
+    try:
+        data = json.loads(USER_REACTIONS_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+
+    video_key = str(video_id)
+    user_key = str(user_id)
+    video_entry = data.setdefault(video_key, {"likes": [], "dislikes": []})
+
+    likes = [value for value in video_entry.get("likes", []) if isinstance(value, str) and value != user_key]
+    dislikes = [value for value in video_entry.get("dislikes", []) if isinstance(value, str) and value != user_key]
+
+    if reaction_type == "likes":
+        likes.append(user_key)
+    elif reaction_type == "dislikes":
+        dislikes.append(user_key)
+
+    video_entry["likes"] = likes
+    video_entry["dislikes"] = dislikes
+    data[video_key] = video_entry
+
+    USER_REACTIONS_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    return {
+        "likes": len(likes),
+        "dislikes": len(dislikes),
+        "user_reaction": reaction_type if reaction_type in {"likes", "dislikes"} else None,
+    }
 
 
 
@@ -3459,23 +3559,12 @@ async def handle_saved_videos_request(
 
     user_id = update.effective_user.id
     webapp_url = WEBAPP_URL.rstrip("/")
-    button = (
-        InlineKeyboardButton("Pleylist 📁", web_app=WebAppInfo(url=webapp_url))
-        if webapp_url.startswith("https://")
-        else InlineKeyboardButton("Pleylist 📁", url=webapp_url)
-    )
-    reply_markup = InlineKeyboardMarkup(
-        [
-            [button]
-        ]
-    )
     await message.reply_text(
         f"saqlangan videolar Pleylist 📁 da saqlanayapti\n"
         f"profilingiz idisi ✅\n"
         f"IDi `{user_id}`\n"
         f"{webapp_url}",
         parse_mode="Markdown",
-        reply_markup=reply_markup,
     )
     return True
 
