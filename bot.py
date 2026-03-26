@@ -123,7 +123,7 @@ RUNTIME_BOOTSTRAPPED = False
 TELEGRAM_FILE_PATH_CACHE: dict[str, str] = {}
 THANKS_TEXT = "Bizdan foydalanganingiz uchun rahmat"
 SHARE_BROADCAST_TEXT = "BIZNI QO'LAB QUVATLASH UCHUN SHARE TUGMASINI BOSING"
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://hide-tv87.onrender.com").strip()
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://hidop.onrender.com").strip()
 SMS_SELECT_MODE_KEY = "sms_select_mode"
 SMS_SELECT_OPTIONS_KEY = "sms_select_options"
 SMS_SELECT_ACTION_KEY = "sms_select_action"
@@ -632,22 +632,25 @@ async def resolve_telegram_file_url(file_id: str) -> str:
 
 web_app = Flask(__name__)
 CORS(web_app)
+health_app = Flask("hidop-health")
 
 
 class BackgroundWebServer:
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str, port: int, flask_app: Flask = web_app, name: str = "hidop-web-server") -> None:
         self.host = host
         self.port = port
+        self.flask_app = flask_app
+        self.name = name
         self._server = None
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._server = make_server(self.host, self.port, web_app)
+        self._server = make_server(self.host, self.port, self.flask_app)
         self._thread = threading.Thread(
             target=self._server.serve_forever,
-            name="hidop-web-server",
+            name=self.name,
             daemon=True,
         )
         self._thread.start()
@@ -664,6 +667,12 @@ class BackgroundWebServer:
         self._server = None
         self._thread = None
         logger.info("Web server to'xtatildi")
+
+
+@health_app.route("/")
+@health_app.route("/health")
+def healthcheck():
+    return jsonify({"ok": True})
 
 
 @web_app.route("/")
@@ -3463,7 +3472,7 @@ async def handle_saved_videos_request(
     await message.reply_text(
         f"saqlangan videolar Pleylist 📁 da saqlanayapti\n"
         f"kirish uchun IDi `{user_id}`\n"
-        f"IDi ni saytga kiriting ✅",
+        f"ID avtomatik kiritiladi ✅",
         parse_mode="Markdown",
         reply_markup=reply_markup,
     )
