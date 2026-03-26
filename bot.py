@@ -3458,7 +3458,7 @@ async def handle_saved_videos_request(
         return False
 
     user_id = update.effective_user.id
-    webapp_url = build_webapp_url(user_id)
+    webapp_url = WEBAPP_URL.rstrip("/")
     button = (
         InlineKeyboardButton("Pleylist 📁", web_app=WebAppInfo(url=webapp_url))
         if webapp_url.startswith("https://")
@@ -3471,8 +3471,9 @@ async def handle_saved_videos_request(
     )
     await message.reply_text(
         f"saqlangan videolar Pleylist 📁 da saqlanayapti\n"
-        f"kirish uchun IDi `{user_id}`\n"
-        f"ID avtomatik kiritiladi ✅",
+        f"profilingiz idisi ✅\n"
+        f"IDi `{user_id}`\n"
+        f"{webapp_url}",
         parse_mode="Markdown",
         reply_markup=reply_markup,
     )
