@@ -233,6 +233,16 @@ function getDisplayDescription(item) {
   return item?.comment || item?.category || "Video tafsilotlari mavjud emas";
 }
 
+function renderScrollingText(text, className) {
+  const safeText = escapeHtml(text);
+  return `
+    <span class="${className}">
+      <span>${safeText}</span>
+      <span aria-hidden="true">${safeText}</span>
+    </span>
+  `;
+}
+
 function getProfileBadgeText() {
   const firstName = String(tg?.initDataUnsafe?.user?.first_name || "").trim();
   if (selectedTargetUserId) {
@@ -1196,17 +1206,17 @@ function render() {
           ${canPreviewInCard ? `<div class="play-button" onclick="toggleVideo(this, event)" aria-label="Previewni ochish">▶</div>` : `<div class="thumb__notice">Botda oching</div>`}
           <div class="thumb__overlay">
             <div class="thumb__head">
-              <div class="thumb__badge thumb__badge--title">${title}</div>
+              <div class="thumb__badge thumb__badge--title">${renderScrollingText(getDisplayTitle(item), "thumb__marquee")}</div>
               <div class="thumb__badge thumb__badge--time">${duration}</div>
             </div>
             <div class="thumb__content">
-              <div class="thumb__label-wrap">
-                <div class="thumb__sub">${description}</div>
-              </div>
               <div class="meta__buttons thumb__buttons">
                 <button class="save-button" type="button">Saqlash</button>
                 <button class="send-button" type="button">Yuborish</button>
                 ${activeCategory === "Ombor" ? '<button class="delete-button" type="button">O\'chirish</button>' : ""}
+              </div>
+              <div class="thumb__label-wrap">
+                <div class="thumb__sub">${renderScrollingText(getDisplayDescription(item), "thumb__sub-marquee")}</div>
               </div>
             </div>
           </div>
