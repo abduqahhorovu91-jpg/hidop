@@ -343,14 +343,22 @@ def parse_send_target_video(args: list[str]) -> tuple[int, int] | None:
 def load_users() -> None:
     try:
         USERS.clear()
-        USERS.update(db_load_users())
+        raw_users = db_load_users()
+        if not isinstance(raw_users, dict):
+            return
+        for raw_user_id, user_data in raw_users.items():
+            if not str(raw_user_id).lstrip("-").isdigit():
+                continue
+            if not isinstance(user_data, dict):
+                continue
+            USERS[int(raw_user_id)] = user_data
     except Exception as exc:
         logger.warning("users bazadan o'qilmadi: %s", exc)
 
 
 def save_users() -> None:
     try:
-        db_save_users(USERS)
+        db_save_users({str(user_id): data for user_id, data in USERS.items()})
     except Exception as exc:
         logger.warning("users baza ga yozilmadi: %s", exc)
 
@@ -4801,6 +4809,51 @@ async def handle_idi_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return True
 
 
+async def handle_admin_users_json_export(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    message = update.message
+    if not message or not update.effective_user:
+        return False
+
+    admin_id = get_admin_id() or VIDEO_ADMIN_ID
+    if update.effective_user.id != admin_id:
+        return False
+
+    query_text = normalize_query(message.text)
+    if query_text not in {"json", "users json", "user json"}:
+        return False
+
+    save_users()
+    save_saved_videos()
+    save_video_reactions()
+    save_user_reactions()
+
+    export_files = [
+        (USERS_FILE, "users.json", "Foydalanuvchilar JSON fayli."),
+        (SAVED_VIDEOS_FILE, "saved_videos.json", "Saqlangan videolar JSON fayli."),
+        (USER_REACTIONS_FILE, "user_reactions.json", "Like/dislike foydalanuvchilar JSON fayli."),
+        (VIDEO_REACTIONS_FILE, "video_reactions.json", "Video reaktsiyalar soni JSON fayli."),
+    ]
+
+    sent_any = False
+    for file_path, filename, caption in export_files:
+        if not file_path.exists():
+            continue
+        with open(file_path, "rb") as export_file:
+            await context.bot.send_document(
+                chat_id=message.chat_id,
+                document=export_file,
+                filename=filename,
+                caption=caption,
+            )
+        sent_any = True
+
+    if not sent_any:
+        await message.reply_text("JSON fayllar topilmadi.")
+    return True
+
+
 async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
@@ -4817,6 +4870,8 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if await handle_admin_chat_panel_shortcut(update, context):
         return
     if await handle_admin_video_uploaders_report(update, context):
+        return
+    if await handle_admin_users_json_export(update, context):
         return
     if await handle_upload_video_name(update, context):
         return
