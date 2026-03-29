@@ -40,7 +40,9 @@ from werkzeug.serving import make_server
 from yt_dlp import YoutubeDL
 
 BASE_DIR = Path(__file__).resolve().parent
+load_dotenv()
 load_dotenv(BASE_DIR / ".env")
+load_dotenv(Path.cwd() / ".env")
 DEFAULT_DATA_DIR = BASE_DIR
 DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
 
@@ -52,6 +54,18 @@ def resolve_data_dir(raw_value: str) -> Path:
     if not candidate.is_absolute():
         candidate = BASE_DIR / candidate
     return candidate
+
+
+def get_env_value(name: str, default: str = "") -> str:
+    raw_value = os.getenv(name, default)
+    value = str(raw_value or "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1].strip()
+    return value
+
+
+def get_bot_token() -> str:
+    return get_env_value("BOT_TOKEN")
 
 
 DATA_DIR = resolve_data_dir(DATA_DIR_ENV)
@@ -167,6 +181,7 @@ TITLE_INDEX: dict[str, list[dict]] = {}  # Pre-built index for first letters
 RUNTIME_BOOTSTRAPPED = False
 TELEGRAM_FILE_PATH_CACHE: dict[str, str] = {}
 TELEGRAM_FILE_SIZE_CACHE: dict[str, int] = {}
+TELEGRAM_PROFILE_PHOTO_CACHE: dict[int, str] = {}
 TELEGRAM_FILE_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 THANKS_TEXT = "Bizdan foydalanganingiz uchun rahmat"
 SHARE_BROADCAST_TEXT = "BIZNI QO'LAB QUVATLASH UCHUN SHARE TUGMASINI BOSING"
@@ -661,7 +676,7 @@ def remove_saved_video_for_owner(owner_id: int, video_id: int) -> dict[str, obje
 
 
 async def send_video_to_user(target_user_id: int, video_id: int) -> None:
-    token = os.getenv("BOT_TOKEN", "").strip()
+    token = get_bot_token()
     if not token:
         raise RuntimeError("BOT_TOKEN topilmadi.")
 
@@ -697,7 +712,7 @@ async def resolve_telegram_file_info(file_id: str) -> dict[str, object]:
             "file_size": TELEGRAM_FILE_SIZE_CACHE.get(file_id),
         }
 
-    token = os.getenv("BOT_TOKEN", "").strip()
+    token = get_bot_token()
     if not token:
         raise RuntimeError("BOT_TOKEN topilmadi.")
 
@@ -723,6 +738,38 @@ async def resolve_telegram_file_info(file_id: str) -> dict[str, object]:
         TELEGRAM_FILE_SIZE_CACHE[file_id] = file_size
     TELEGRAM_FILE_PATH_CACHE[file_id] = file_url
     return {"url": file_url, "file_size": file_size}
+
+
+async def resolve_telegram_profile_photo_url(user_id: int) -> str:
+    cached_url = TELEGRAM_PROFILE_PHOTO_CACHE.get(user_id)
+    if cached_url:
+        return cached_url
+
+    token = get_bot_token()
+    if not token:
+        raise RuntimeError("BOT_TOKEN topilmadi.")
+
+    async with Bot(token=token) as bot:
+        photos = await bot.get_user_profile_photos(user_id=user_id, limit=1)
+        photo_sets = getattr(photos, "photos", None) or []
+        if not photo_sets:
+            return ""
+
+        largest_photo = photo_sets[0][-1] if photo_sets[0] else None
+        file_id = str(getattr(largest_photo, "file_id", "") or "").strip()
+        if not file_id:
+            return ""
+
+        file_info = await bot.get_file(file_id)
+
+    photo_url = str(getattr(file_info, "file_path", "") or "").strip()
+    if not photo_url:
+        return ""
+    if not photo_url.startswith(("http://", "https://")):
+        photo_url = f"https://api.telegram.org/file/bot{token}/{photo_url.lstrip('/')}"
+
+    TELEGRAM_PROFILE_PHOTO_CACHE[user_id] = photo_url
+    return photo_url
 
 
 async def resolve_telegram_file_url(file_id: str) -> str:
@@ -1108,6 +1155,20 @@ def react_video_api():
 
     result = set_video_reaction_state(video_id, user_id, reaction_type)
     return jsonify({"ok": True, **result})
+
+
+@web_app.route("/api/user-profile-photo")
+def user_profile_photo_api():
+    user_id = parse_int(request.args.get("user_id"))
+    if user_id is None:
+        return jsonify({"ok": False, "error": "user_id kerak"}), 400
+
+    try:
+        photo_url = asyncio.run(resolve_telegram_profile_photo_url(user_id))
+        return jsonify({"ok": True, "photo_url": photo_url})
+    except Exception as exc:
+        logger.exception("Telegram profil rasmi olinmadi (%s): %s", user_id, exc)
+        return jsonify({"ok": False, "error": "Profil rasmi olinmadi", "photo_url": ""}), 500
 
 
 @web_app.route("/api/video/<int:video_id>")
@@ -1574,6 +1635,29 @@ def create_video_buttons(video_id: int, context: ContextTypes.DEFAULT_TYPE) -> I
             callback_data=f"save_video_{video_id}"
         )]
     ])
+
+
+def build_save_success_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("OK", url=WEBAPP_URL)]])
+
+
+async def send_save_success_message(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    *,
+    already_saved: bool = False,
+) -> None:
+    status_text = "✅ Allaqachon saqlangan!" if already_saved else "✅ Saqlandi!"
+    message_text = (
+        "Telegram\n\n"
+        f"{status_text}\n\n"
+        "Playlistingizni /playlist orqali ko'ring."
+    )
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=message_text,
+        reply_markup=build_save_success_markup(),
+    )
 
 
 def get_video_reaction_count(video_id: int, reaction_type: str) -> int:
@@ -3877,26 +3961,14 @@ async def handle_save_video_name(
     saved_items, saved_id = add_saved_video(update.effective_user.id, video_id, raw_name)
     context.user_data.pop(SAVE_VIDEO_STATE_KEY, None)
     if saved_id is None:
-        await message.reply_text("video allaqachon saqlangan ❤️")
+        await send_save_success_message(
+            context,
+            update.effective_user.id,
+            already_saved=True,
+        )
         return True
-    
-    # Send folder message first
-    folder_msg = await message.reply_text("📁")
-    
-    # Wait 2 seconds and delete folder message
-    await asyncio.sleep(2)
-    await folder_msg.delete()
-    
-    # Send success message
-    await message.reply_text("video saqlandi ✅")
-    
-    # Send warehouse button message
-    await message.reply_text(
-        "omborni ko'rish uchun bosing ⬇️",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("ombor 📦", callback_data="view_warehouse")]
-        ])
-    )
+
+    await send_save_success_message(context, update.effective_user.id)
     return True
 
 
@@ -4199,15 +4271,13 @@ async def on_save_video_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     saved_items, saved_id = add_saved_video(query.from_user.id, video_id, video_title)
     
     if saved_id is None:
-        await context.bot.send_message(
-            chat_id=query.from_user.id,
-            text="Video allaqachon saqlangan ❤️"
+        await send_save_success_message(
+            context,
+            query.from_user.id,
+            already_saved=True,
         )
     else:
-        await context.bot.send_message(
-            chat_id=query.from_user.id,
-            text=t(context, "video_saved", number=saved_id)
-        )
+        await send_save_success_message(context, query.from_user.id)
 
 
 async def on_like_video_inline_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4231,7 +4301,8 @@ async def on_save_video_inline_click(update: Update, context: ContextTypes.DEFAU
     if not query or not query.data or not query.data.startswith("save_video_inline_"):
         return
     
-    await query.answer("saqlandi 📥")
+    await query.answer()
+    await send_save_success_message(context, query.from_user.id)
 
 
 async def on_show_reactions_inline_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4855,14 +4926,17 @@ def bootstrap_runtime_state() -> None:
 
 
 def main() -> None:
-    token = os.getenv("BOT_TOKEN")
+    token = get_bot_token()
     if not token:
-        raise RuntimeError("BOT_TOKEN topilmadi. .env fayliga token qo'shing.")
+        raise RuntimeError("BOT_TOKEN topilmadi. `.env` yoki shell environment ichiga BOT_TOKEN qo'shing.")
 
     bootstrap_runtime_state()
     port = int(os.getenv("PORT", 8000))
     web_server = BackgroundWebServer(host="0.0.0.0", port=port)
-    web_server.start()
+    try:
+        web_server.start()
+    except OSError as exc:
+        raise RuntimeError(f"Web server {port}-portda ishga tushmadi: {exc}") from exc
 
     app = (
         Application.builder()
@@ -4928,4 +5002,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nBot to'xtatildi.")
+    except Exception as exc:
+        logger.exception("Bot ishga tushishda xatolik: %s", exc)
+        raise
