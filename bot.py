@@ -214,6 +214,8 @@ ACTIVE_CHAT_USER_IDS_KEY = "active_chat_user_ids"
 GENERAL_BROADCAST_STATE_KEY = "general_broadcast_state"
 GENERAL_BROADCAST_TEXT_KEY = "general_broadcast_text"
 GENERAL_BROADCAST_CONTENT_KEY = "general_broadcast_content"
+GENERAL_BROADCAST_PENDING_KEY = "general_broadcast_pending"
+GENERAL_BROADCAST_SCHEDULED_KEY = "general_broadcast_scheduled"
 SAVE_VIDEO_STATE_KEY = "save_video_state"
 DELETE_SAVED_VIDEOS_STATE_KEY = "delete_saved_videos_state"
 DELETE_CATALOG_VIDEOS_STATE_KEY = "delete_catalog_videos_state"
@@ -277,6 +279,12 @@ I18N = {
         "upload_video_comment_confirm_prompt": "Comment qo'shasizmi?",
         "upload_video_comment_prompt": "Comment kiting 📨",
         "upload_video_comment_added": "Comment kiritildi 📨 ✅",
+        "upload_video_photo_prompt": "Endi video uchun rasm yuboring. Rasm majburiy.",
+        "upload_video_photo_invalid": "Iltimos, video uchun rasm yuboring. Rasm majburiy.",
+        "upload_video_photo_added": "Rasm qabul qilindi 🖼️ ✅",
+        "upload_video_trailer_prompt": "Endi qisqacha treyler video yuboring. Treyler majburiy.",
+        "upload_video_trailer_invalid": "Iltimos, treyler uchun video yuboring. Treyler majburiy.",
+        "upload_video_trailer_added": "Treyler qabul qilindi 🎬 ✅",
         "save_button": "Saqlash 📥",
     },
 }
@@ -367,14 +375,20 @@ def load_video_catalog() -> None:
     try:
         raw = db_load_video_catalog()
         VIDEO_CATALOG["next_id"] = int(raw.get("next_id", 1))
-        VIDEO_CATALOG["items"] = raw.get("items", [])
+        VIDEO_CATALOG["items"] = normalize_video_catalog_items(raw.get("items", []))
     except Exception as exc:
         logger.warning("videos baza dan o'qilmadi: %s", exc)
 
 
 def save_video_catalog() -> None:
     try:
-        db_save_video_catalog(VIDEO_CATALOG)
+        payload = {
+            "next_id": int(VIDEO_CATALOG.get("next_id", 1)),
+            "items": normalize_video_catalog_items(VIDEO_CATALOG.get("items", [])),
+        }
+        VIDEO_CATALOG["next_id"] = payload["next_id"]
+        VIDEO_CATALOG["items"] = payload["items"]
+        db_save_video_catalog(payload)
     except Exception as exc:
         logger.warning("videos baza ga yozilmadi: %s", exc)
 
@@ -397,12 +411,47 @@ def next_available_catalog_id(start_id: int) -> int:
 
 
 def format_duration(seconds: int) -> str:
-    """Format duration in seconds to MM:SS format"""
+    """Format duration in seconds to HH:MM:SS or MM:SS format."""
     if seconds <= 0:
         return "00:00"
-    minutes = seconds // 60
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
     remaining_seconds = seconds % 60
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{remaining_seconds:02d}"
     return f"{minutes:02d}:{remaining_seconds:02d}"
+
+
+def normalize_video_catalog_item(item: dict[str, object]) -> dict[str, object]:
+    normalized = dict(item)
+
+    normalized["preview_url"] = str(normalized.get("preview_url", "") or "").strip()
+    normalized["trailer_url"] = str(normalized.get("trailer_url", "") or "").strip()
+
+    file_size = parse_int(normalized.get("file_size"))
+    normalized["file_size"] = file_size if isinstance(file_size, int) and file_size > 0 else 0
+
+    trailer_url = normalized["trailer_url"]
+    if trailer_url:
+        normalized["web_streamable"] = True
+        normalized["web_stream_error"] = ""
+    else:
+        known_streamable = normalized.get("web_streamable")
+        normalized["web_streamable"] = bool(known_streamable) if isinstance(known_streamable, bool) else False
+        normalized["web_stream_error"] = str(normalized.get("web_stream_error", "") or "").strip()
+
+    return normalized
+
+
+def normalize_video_catalog_items(items: object) -> list[dict[str, object]]:
+    if not isinstance(items, list):
+        return []
+    normalized_items: list[dict[str, object]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        normalized_items.append(normalize_video_catalog_item(item))
+    return normalized_items
 
 
 def build_search_index() -> None:
@@ -450,6 +499,8 @@ def add_video_to_catalog(
     comment: str = "",
     duration: int = 0,
     file_size: int = 0,
+    preview_url: str = "",
+    trailer_url: str = "",
 ) -> int:
     items = VIDEO_CATALOG.get("items", [])
     if not isinstance(items, list):
@@ -474,6 +525,8 @@ def add_video_to_catalog(
         "comment": comment,
         "duration": duration,
         "file_size": file_size,
+        "preview_url": preview_url.strip(),
+        "trailer_url": trailer_url.strip(),
     }
     items.append(entry)
     VIDEO_CATALOG["items"] = items
@@ -484,6 +537,67 @@ def add_video_to_catalog(
     clear_search_cache()
     
     return new_id
+
+
+async def finalize_uploaded_video(
+    *,
+    user_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    state: dict[str, object],
+    photo_url: str,
+    trailer_url: str,
+) -> None:
+    title = str(state.get("title", "")).strip()
+    file_id = str(state.get("file_id", "")).strip()
+    comment = str(state.get("comment", "")).strip()
+    duration = int(state.get("duration", 0))
+    file_size = int(state.get("file_size", 0))
+    custom_id = state.get("custom_id")
+
+    if not title or not file_id or not photo_url.strip() or not trailer_url.strip():
+        context.user_data.pop(UPLOAD_VIDEO_STATE_KEY, None)
+        await context.bot.send_message(chat_id=user_id, text="Xatolik. Qaytadan video yuklang.")
+        return
+
+    try:
+        if custom_id:
+            number = add_video_to_catalog(
+                file_id=file_id,
+                title=title,
+                added_by=user_id,
+                custom_id=custom_id,
+                comment=comment,
+                duration=duration,
+                file_size=file_size,
+                preview_url=photo_url,
+                trailer_url=trailer_url,
+            )
+        else:
+            number = add_video_to_catalog(
+                file_id=file_id,
+                title=title,
+                added_by=user_id,
+                comment=comment,
+                duration=duration,
+                file_size=file_size,
+                preview_url=photo_url,
+                trailer_url=trailer_url,
+            )
+    except ValueError:
+        await context.bot.send_message(chat_id=user_id, text=t(context, "upload_video_id_exists"))
+        return
+
+    context.user_data.pop(UPLOAD_VIDEO_STATE_KEY, None)
+    success_lines = [
+        "Video muvaffaqiyatli saqlandi! 📥",
+        f"Video ID: {number}",
+        f"Nomi: {title}",
+    ]
+    if comment:
+        success_lines.append(f"Comment: {comment}")
+    success_lines.append("Rasm: saqlandi ✅")
+    success_lines.append("Treyler: saqlandi 🎬")
+    await context.bot.send_message(chat_id=user_id, text="\n".join(success_lines))
 
 
 def get_video_by_number(number: int) -> dict | None:
@@ -653,7 +767,6 @@ def get_saved_videos_for_owner(owner_id: int) -> list[dict[str, object]]:
         payload["category"] = "Ombor"
         payload["ageLabel"] = "Saqlangan"
         payload["palette"] = "instagram"
-        payload["preview_url"] = ""
         items.append(payload)
     return items
 
@@ -834,14 +947,25 @@ def build_video_stream_info(
     video: dict[str, object], *, probe: bool = False
 ) -> dict[str, object]:
     video_id = parse_int(video.get("id"))
-    preview_url = str(video.get("preview_url", "") or video.get("stream_url", "") or "").strip()
-    if preview_url:
+    trailer_url = str(video.get("trailer_url", "") or "").strip()
+    if trailer_url:
         return {
             "playable": True,
             "reason": "",
             "message": "",
-            "stream_url": preview_url,
-            "upstream_url": preview_url,
+            "stream_url": trailer_url,
+            "upstream_url": trailer_url,
+            "source": "external",
+        }
+
+    external_stream_url = str(video.get("stream_url", "") or "").strip()
+    if external_stream_url:
+        return {
+            "playable": True,
+            "reason": "",
+            "message": "",
+            "stream_url": external_stream_url,
+            "upstream_url": external_stream_url,
             "source": "external",
         }
 
@@ -960,6 +1084,8 @@ def build_video_stream_info(
 def serialize_video_item(video: dict[str, object]) -> dict[str, object]:
     payload = dict(video)
     stream_info = build_video_stream_info(video, probe=False)
+    payload["poster_url"] = str(video.get("preview_url", "") or "")
+    payload["trailer_url"] = str(video.get("trailer_url", "") or "")
     payload["preview_url"] = str(stream_info.get("stream_url", "") or "")
     payload["web_streamable"] = stream_info.get("playable")
     payload["web_stream_error"] = str(stream_info.get("reason", "") or "")
@@ -2362,33 +2488,12 @@ async def on_upload_video_comment_choice(
     await query.answer()
     
     if query.data == "upload_video_comment_no":
-        # Save without comment
-        try:
-            if custom_id:
-                number = add_video_to_catalog(
-                    file_id=file_id,
-                    title=title,
-                    added_by=query.from_user.id,
-                    custom_id=custom_id,
-                    duration=duration
-                )
-            else:
-                number = add_video_to_catalog(
-                    file_id=file_id,
-                    title=title,
-                    added_by=query.from_user.id,
-                    duration=duration
-                )
-            context.user_data.pop(UPLOAD_VIDEO_STATE_KEY, None)
-            await context.bot.send_message(
-                chat_id=query.from_user.id,
-                text=f"Video muvaffaqiyatli saqlandi! 📥\nVideo ID: {number}\nNomi: {title}",
-            )
-        except ValueError:
-            await context.bot.send_message(
-                chat_id=query.from_user.id,
-                text="Xatolik. Qayta urinib ko'ring.",
-            )
+        state["comment"] = ""
+        state["stage"] = "await_photo"
+        await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=t(context, "upload_video_photo_prompt"),
+        )
         return
 
     if query.data == "upload_video_comment_yes":
@@ -2456,77 +2561,30 @@ async def on_general_broadcast_confirm(
         await query.answer("Habar topilmadi.", show_alert=False)
         return
 
-    await query.answer("Yuborilmoqda...")
-    sent_count = 0
-    failed_count = 0
-    failed_user_ids: list[int] = []
-    
-    for user_id in USERS.keys():
-        try:
-            if message_content:
-                # Send content (photo, video, document, audio, voice)
-                content_type = message_content["type"]
-                
-                if content_type == "photo":
-                    kwargs = {"chat_id": user_id, "photo": message_content["file_id"]}
-                    if message_text:
-                        kwargs["caption"] = message_text
-                    await context.bot.send_photo(**kwargs)
-                elif content_type == "video":
-                    kwargs = {"chat_id": user_id, "video": message_content["file_id"]}
-                    if message_text:
-                        kwargs["caption"] = message_text
-                    await context.bot.send_video(**kwargs)
-                elif content_type == "animation":
-                    kwargs = {"chat_id": user_id, "animation": message_content["file_id"]}
-                    if message_text:
-                        kwargs["caption"] = message_text
-                    await context.bot.send_animation(**kwargs)
-                elif content_type == "document":
-                    kwargs = {"chat_id": user_id, "document": message_content["file_id"]}
-                    if message_text:
-                        kwargs["caption"] = message_text
-                    await context.bot.send_document(**kwargs)
-                elif content_type == "audio":
-                    kwargs = {"chat_id": user_id, "audio": message_content["file_id"]}
-                    if message_text:
-                        kwargs["caption"] = message_text
-                    await context.bot.send_audio(**kwargs)
-                elif content_type == "voice":
-                    kwargs = {"chat_id": user_id, "voice": message_content["file_id"]}
-                    if message_text:
-                        kwargs["caption"] = message_text
-                    await context.bot.send_voice(**kwargs)
-            else:
-                # Send text only
-                await context.bot.send_message(chat_id=user_id, text=message_text)
-            sent_count += 1
-        except Exception:
-            failed_count += 1
-            failed_user_ids.append(user_id)
+    await query.answer("Navbatga qo'shildi...")
+    pending_broadcasts = context.application.bot_data.setdefault(GENERAL_BROADCAST_PENDING_KEY, [])
+    if not isinstance(pending_broadcasts, list):
+        pending_broadcasts = []
+        context.application.bot_data[GENERAL_BROADCAST_PENDING_KEY] = pending_broadcasts
+
+    broadcast_id = f"broadcast_{int(datetime.now().timestamp() * 1000)}"
+    pending_broadcasts.append(
+        {
+            "id": broadcast_id,
+            "text": str(message_text or ""),
+            "content": dict(message_content) if isinstance(message_content, dict) else None,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+    )
 
     if query.message:
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text=(
-                "Umumiy habar yuborildi.\n"
-                f"Yuborildi: {sent_count}\n"
-                f"Yuborilmadi: {failed_count}"
+                "Umumiy habar navbatga qo'shildi.\n"
+                "Endi botdan foydalangan userga 3 minutdan keyin yuboriladi."
             ),
         )
-        if failed_user_ids:
-            failed_lines: list[str] = []
-            for failed_user_id in failed_user_ids:
-                user_name = await format_user_name_for_report(
-                    context,
-                    failed_user_id,
-                    USERS.get(failed_user_id, {}),
-                )
-                failed_lines.append(f"- {user_name} ({failed_user_id})")
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="Yuborilmaganlar:\n" + "\n".join(failed_lines),
-            )
 
 
 async def send_user_selection_list(
@@ -2567,6 +2625,135 @@ async def send_user_selection_list(
         chat_id=chat_id,
         text="\n".join(lines),
     )
+
+
+async def send_general_broadcast_payload(
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    user_id: int,
+    message_text: str,
+    message_content: dict[str, object] | None,
+) -> None:
+    if message_content:
+        content_type = str(message_content.get("type", "") or "")
+        file_id = str(message_content.get("file_id", "") or "").strip()
+        if not content_type or not file_id:
+            raise ValueError("Broadcast content noto'g'ri.")
+
+        if content_type == "photo":
+            kwargs = {"chat_id": user_id, "photo": file_id}
+            if message_text:
+                kwargs["caption"] = message_text
+            await context.bot.send_photo(**kwargs)
+            return
+        if content_type == "video":
+            kwargs = {"chat_id": user_id, "video": file_id}
+            if message_text:
+                kwargs["caption"] = message_text
+            await context.bot.send_video(**kwargs)
+            return
+        if content_type == "animation":
+            kwargs = {"chat_id": user_id, "animation": file_id}
+            if message_text:
+                kwargs["caption"] = message_text
+            await context.bot.send_animation(**kwargs)
+            return
+        if content_type == "document":
+            kwargs = {"chat_id": user_id, "document": file_id}
+            if message_text:
+                kwargs["caption"] = message_text
+            await context.bot.send_document(**kwargs)
+            return
+        if content_type == "audio":
+            kwargs = {"chat_id": user_id, "audio": file_id}
+            if message_text:
+                kwargs["caption"] = message_text
+            await context.bot.send_audio(**kwargs)
+            return
+        if content_type == "voice":
+            kwargs = {"chat_id": user_id, "voice": file_id}
+            if message_text:
+                kwargs["caption"] = message_text
+            await context.bot.send_voice(**kwargs)
+            return
+
+    await context.bot.send_message(chat_id=user_id, text=message_text)
+
+
+async def deliver_general_broadcast_after_delay(
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    user_id: int,
+    broadcast_id: str,
+) -> None:
+    try:
+        await asyncio.sleep(180)
+        pending_broadcasts = context.application.bot_data.get(GENERAL_BROADCAST_PENDING_KEY, [])
+        if not isinstance(pending_broadcasts, list):
+            return
+
+        broadcast = next(
+            (
+                item for item in pending_broadcasts
+                if isinstance(item, dict) and str(item.get("id", "")) == broadcast_id
+            ),
+            None,
+        )
+        if not isinstance(broadcast, dict):
+            return
+
+        await send_general_broadcast_payload(
+            context,
+            user_id=user_id,
+            message_text=str(broadcast.get("text", "") or ""),
+            message_content=broadcast.get("content") if isinstance(broadcast.get("content"), dict) else None,
+        )
+    except Exception as exc:
+        logger.warning("Kechiktirilgan umumiy habar yuborilmadi (%s -> %s): %s", broadcast_id, user_id, exc)
+    finally:
+        scheduled = context.application.bot_data.get(GENERAL_BROADCAST_SCHEDULED_KEY, {})
+        if isinstance(scheduled, dict):
+            scheduled.pop(f"{broadcast_id}:{user_id}", None)
+
+
+def schedule_pending_general_broadcasts_for_user(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    if not update.effective_user:
+        return
+
+    admin_id = get_admin_id()
+    user_id = update.effective_user.id
+    if admin_id is not None and user_id == admin_id:
+        return
+
+    pending_broadcasts = context.application.bot_data.get(GENERAL_BROADCAST_PENDING_KEY, [])
+    if not isinstance(pending_broadcasts, list) or not pending_broadcasts:
+        return
+
+    scheduled = context.application.bot_data.setdefault(GENERAL_BROADCAST_SCHEDULED_KEY, {})
+    if not isinstance(scheduled, dict):
+        scheduled = {}
+        context.application.bot_data[GENERAL_BROADCAST_SCHEDULED_KEY] = scheduled
+
+    for broadcast in pending_broadcasts:
+        if not isinstance(broadcast, dict):
+            continue
+        broadcast_id = str(broadcast.get("id", "") or "").strip()
+        if not broadcast_id:
+            continue
+        schedule_key = f"{broadcast_id}:{user_id}"
+        if scheduled.get(schedule_key):
+            continue
+        scheduled[schedule_key] = True
+        asyncio.create_task(
+            deliver_general_broadcast_after_delay(
+                context,
+                user_id=user_id,
+                broadcast_id=broadcast_id,
+            )
+        )
 
 
 async def handle_admin_sms_selection(
@@ -2937,7 +3124,12 @@ async def handle_admin_video_upload(
 async def handle_user_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message:
         return
+    schedule_pending_general_broadcasts_for_user(update, context)
     if await handle_admin_general_broadcast_content(update, context):
+        return
+    if await handle_upload_video_photo(update, context):
+        return
+    if await handle_upload_video_trailer(update, context):
         return
     if await handle_admin_video_upload(update, context):
         return
@@ -3425,6 +3617,7 @@ async def malumot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.effective_user:
         return
+    schedule_pending_general_broadcasts_for_user(update, context)
 
     is_new_user, _ = register_user(update.effective_user)
     if is_new_user:
@@ -3988,13 +4181,14 @@ async def handle_saved_videos_request(
         return False
 
     user_id = update.effective_user.id
-    webapp_url = WEBAPP_URL.rstrip("/")
     await message.reply_text(
         f"saqlangan videolar Pleylist 📁 da saqlanayapti\n"
         f"profilingiz idisi ✅\n"
-        f"IDi `{user_id}`\n"
-        f"{webapp_url}",
+        f"IDi `{user_id}`",
         parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Botga kirish", url=SHARE_BOT_URL)]]
+        ),
     )
     return True
 
@@ -4672,39 +4866,9 @@ async def handle_upload_video_name(
     if stage == "await_comment":
         comment = normalize_query(message.text)
         state["comment"] = comment
-        state["stage"] = "ready_to_save"
+        state["stage"] = "await_photo"
         await message.reply_text(t(context, "upload_video_comment_added"))
-        # Auto-save the video with comment
-        title = str(state.get("title", "")).strip()
-        file_id = str(state.get("file_id", "")).strip()
-        comment = str(state.get("comment", "")).strip()
-        duration = int(state.get("duration", 0))
-        file_size = int(state.get("file_size", 0))
-        custom_id = state.get("custom_id")  # May be None for auto-generated ID
-        try:
-            if custom_id:
-                number = add_video_to_catalog(
-                    file_id=file_id,
-                    title=title,
-                    added_by=update.effective_user.id,
-                    custom_id=custom_id,
-                    comment=comment,
-                    duration=duration,
-                    file_size=file_size,
-                )
-            else:
-                number = add_video_to_catalog(
-                    file_id=file_id,
-                    title=title,
-                    added_by=update.effective_user.id,
-                    comment=comment,
-                    duration=duration,
-                    file_size=file_size,
-                )
-            context.user_data.pop(UPLOAD_VIDEO_STATE_KEY, None)
-            await message.reply_text(f"Video muvaffaqiyatli saqlandi! 📥\nVideo ID: {number}\nNomi: {title}\nComment: {comment}")
-        except ValueError:
-            await message.reply_text(t(context, "upload_video_id_exists"))
+        await message.reply_text(t(context, "upload_video_photo_prompt"))
         return True
 
     if stage == "await_custom_id":
@@ -4734,7 +4898,92 @@ async def handle_upload_video_name(
         await message.reply_text(t(context, "upload_video_id_choice_prompt"))
         return True
 
+    if stage == "await_photo":
+        await message.reply_text(t(context, "upload_video_photo_invalid"))
+        return True
+
+    if stage == "await_trailer":
+        await message.reply_text(t(context, "upload_video_trailer_invalid"))
+        return True
+
     return False
+
+
+async def handle_upload_video_photo(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    message = update.message
+    if not message or not update.effective_user:
+        return False
+    if not is_video_uploader(update.effective_user.id):
+        return False
+
+    state = context.user_data.get(UPLOAD_VIDEO_STATE_KEY)
+    if not isinstance(state, dict) or state.get("stage") != "await_photo":
+        return False
+
+    if not message.photo:
+        await message.reply_text(t(context, "upload_video_photo_invalid"))
+        return True
+
+    largest_photo = message.photo[-1]
+    photo_file_id = str(getattr(largest_photo, "file_id", "") or "").strip()
+    if not photo_file_id:
+        await message.reply_text("Rasm fayli olinmadi. Qayta yuboring.")
+        return True
+
+    try:
+        photo_url = await resolve_telegram_file_url(photo_file_id)
+    except Exception as exc:
+        logger.warning("Upload rasmi URL'i olinmadi: %s", exc)
+        await message.reply_text("Rasmni saqlashda xatolik bo'ldi. Qayta yuboring.")
+        return True
+
+    state["preview_url"] = photo_url
+    await message.reply_text(t(context, "upload_video_photo_added"))
+    state["stage"] = "await_trailer"
+    await message.reply_text(t(context, "upload_video_trailer_prompt"))
+    return True
+
+
+async def handle_upload_video_trailer(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    message = update.message
+    if not message or not update.effective_user:
+        return False
+    if not is_video_uploader(update.effective_user.id):
+        return False
+
+    state = context.user_data.get(UPLOAD_VIDEO_STATE_KEY)
+    if not isinstance(state, dict) or state.get("stage") != "await_trailer":
+        return False
+
+    trailer_file_id = ""
+    if message.video:
+        trailer_file_id = str(message.video.file_id or "").strip()
+
+    if not trailer_file_id:
+        await message.reply_text(t(context, "upload_video_trailer_invalid"))
+        return True
+
+    try:
+        trailer_url = await resolve_telegram_file_url(trailer_file_id)
+    except Exception as exc:
+        logger.warning("Upload treyler URL'i olinmadi: %s", exc)
+        await message.reply_text("Treylerni saqlashda xatolik bo'ldi. Qayta yuboring.")
+        return True
+
+    state["trailer_url"] = trailer_url
+    await message.reply_text(t(context, "upload_video_trailer_added"))
+    await finalize_uploaded_video(
+        user_id=update.effective_user.id,
+        context=context,
+        state=state,
+        photo_url=str(state.get("preview_url", "")).strip(),
+        trailer_url=trailer_url,
+    )
+    return True
 
 
 async def handle_idi_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -4857,6 +5106,7 @@ async def handle_admin_users_json_export(
 async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
+    schedule_pending_general_broadcasts_for_user(update, context)
     if await handle_admin_general_broadcast_content(update, context):
         return
     if await handle_admin_today_joined_report(update, context):

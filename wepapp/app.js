@@ -11,7 +11,7 @@ let activeQuery = "";
 let catalogItems = [];
 let savedItems = [];
 let selectedTargetUserId = "";
-let toastTimerId = null;
+let isAutoDetectedUserId = false;
 let catalogRefreshTimerId = null;
 let catalogRefreshInFlight = false;
 const videoStatusCache = new Map();
@@ -118,7 +118,6 @@ const profileModalCloseEl = document.getElementById("profileModalClose");
 const profileButtonEl = document.querySelector(".telegram-bar__profile");
 const profileInputEl = document.getElementById("profileInput");
 const profileSubmitEl = document.getElementById("profileSubmit");
-const topToastEl = document.getElementById("topToast");
 const saveSuccessModalEl = document.getElementById("saveSuccessModal");
 const saveSuccessStatusEl = document.getElementById("saveSuccessStatus");
 const saveSuccessDescriptionEl = document.getElementById("saveSuccessDescription");
@@ -185,9 +184,14 @@ const demoItems = [
 ];
 
 function formatDuration(seconds = 0) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${String(secs).padStart(2, "0")}`;
+  const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
 function buildVideoFileUrl(itemId) {
@@ -252,6 +256,17 @@ function getProfileBadgeText() {
     return firstName.slice(0, 1).toUpperCase();
   }
   return "U";
+}
+
+function getTelegramUserId() {
+  const rawUserId = tg?.initDataUnsafe?.user?.id;
+  if (typeof rawUserId === "number" && Number.isFinite(rawUserId) && rawUserId > 0) {
+    return String(rawUserId);
+  }
+  if (typeof rawUserId === "string" && /^\d+$/.test(rawUserId.trim())) {
+    return rawUserId.trim();
+  }
+  return "";
 }
 
 function getAvatarLookupUserId() {
@@ -433,6 +448,17 @@ async function fetchVideoStatus(item, { force = false } = {}) {
     };
   }
 
+  if (item.trailer_url) {
+    const result = {
+      playable: true,
+      reason: "",
+      message: "",
+      stream_url: normalizeApiUrl(item.trailer_url),
+    };
+    videoStatusCache.set(item.id, result);
+    return result;
+  }
+
   if (item.web_streamable === false) {
     return {
       playable: false,
@@ -446,7 +472,7 @@ async function fetchVideoStatus(item, { force = false } = {}) {
     return videoStatusCache.get(item.id);
   }
 
-  const fallbackUrl = normalizeApiUrl(item.preview_url || buildVideoFileUrl(item.id));
+  const fallbackUrl = normalizeApiUrl(item.trailer_url || item.preview_url || buildVideoFileUrl(item.id));
   if (item.web_stream_source === "external" && fallbackUrl) {
     const result = {
       playable: true,
@@ -587,6 +613,8 @@ async function loadItems() {
       ageLabel: item.ageLabel || "Kutubxonada",
       palette: item.palette || detectPalette(item),
       preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
+      poster_url: normalizeApiUrl(item.poster_url || ""),
+      trailer_url: normalizeApiUrl(item.trailer_url || ""),
       added_at: item.added_at || "",
       web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
       web_stream_error: item.web_stream_error || "",
@@ -625,6 +653,8 @@ async function loadSavedItems() {
     return items.map((item) => ({
       ...item,
       preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
+      poster_url: normalizeApiUrl(item.poster_url || ""),
+      trailer_url: normalizeApiUrl(item.trailer_url || ""),
       web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
       web_stream_error: item.web_stream_error || "",
       web_stream_message: item.web_stream_message || "",
@@ -890,6 +920,7 @@ function closeSaveRedirectModal() {
 }
 
 function openSaveRedirectModal({
+  dialogTitle = "Telegram",
   title = "Saqlandi!",
   description = "Playlistingizni /playlist orqali ko'ring.",
   buttonText = "OK",
@@ -899,11 +930,16 @@ function openSaveRedirectModal({
     return;
   }
 
+  const saveSuccessTitleEl = document.getElementById("saveSuccessTitle");
+  if (saveSuccessTitleEl) {
+    saveSuccessTitleEl.textContent = dialogTitle;
+  }
   if (saveSuccessStatusEl) {
-    saveSuccessStatusEl.textContent = `✅ ${title}`;
+    saveSuccessStatusEl.textContent = title;
   }
   if (saveSuccessDescriptionEl) {
     saveSuccessDescriptionEl.textContent = description;
+    saveSuccessDescriptionEl.classList.toggle("is-hidden", !description);
   }
   if (saveSuccessButtonEl) {
     saveSuccessButtonEl.textContent = buttonText;
@@ -1139,10 +1175,13 @@ function renderLibrary() {
     const description = escapeHtml(getDisplayDescription(item));
     const category = escapeHtml(item.category || detectCategory(item));
     const ageLabel = escapeHtml(item.ageLabel || "Kutubxonada");
+    const posterUrl = normalizeApiUrl(item.poster_url || item.preview_url || "");
     const row = document.createElement("article");
     row.className = "library-item";
     row.innerHTML = `
-      <div class="library-item__id">#${safeId}</div>
+      <div class="library-item__poster"${posterUrl ? ` style="background-image: url('${escapeHtml(posterUrl)}')"` : ""}>
+        <div class="library-item__id">#${safeId}</div>
+      </div>
       <div class="library-item__body">
         <div class="library-item__top">
           <h3 class="library-item__title">${title}</h3>
@@ -1191,8 +1230,9 @@ function render() {
     const safeId = escapeHtml(item.id ?? "?");
     const title = escapeHtml(getDisplayTitle(item));
     const description = escapeHtml(getDisplayDescription(item));
-    const canPreviewInCard = item.web_streamable !== false && Boolean(item.preview_url || item.id);
-    const previewUrl = normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""));
+    const canPreviewInCard = Boolean(item.trailer_url) || (item.web_streamable !== false && Boolean(item.preview_url || item.id));
+    const previewUrl = normalizeApiUrl(item.trailer_url || item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""));
+    const posterUrl = normalizeApiUrl(item.poster_url || "");
     const palette = ["night", "instagram", "youtube"].includes(item.palette) ? item.palette : "night";
     const card = document.createElement("article");
     card.className = "card";
@@ -1202,6 +1242,7 @@ function render() {
     card.innerHTML = `
       <div class="card__frame">
         <div class="thumb thumb--${palette}${canPreviewInCard ? " has-video" : ""}" data-video-id="${item.id || ""}">
+          ${posterUrl ? `<div class="thumb__poster" style="background-image: url('${escapeHtml(posterUrl)}')"></div>` : ""}
           ${canPreviewInCard ? `<video data-src="${escapeHtml(previewUrl)}" muted loop playsinline preload="none"></video>` : ""}
           ${canPreviewInCard ? `<div class="play-button" onclick="toggleVideo(this, event)" aria-label="Previewni ochish">▶</div>` : `<div class="thumb__notice">Botda oching</div>`}
           <div class="thumb__overlay">
@@ -1486,6 +1527,9 @@ searchInputEl?.addEventListener("input", (event) => {
 });
 
 function openProfileModal() {
+  if (isAutoDetectedUserId) {
+    return;
+  }
   syncProfileUi();
   profileModalEl?.classList.remove("is-hidden");
   profileModalEl?.setAttribute("aria-hidden", "false");
@@ -1500,24 +1544,44 @@ function closeProfileModal() {
 }
 
 function showTopToast(message) {
-  if (!topToastEl) return;
-  topToastEl.textContent = message;
-  topToastEl.classList.remove("is-hidden");
-  if (toastTimerId) {
-    window.clearTimeout(toastTimerId);
+  const normalized = String(message || "").trim();
+  if (!normalized) return;
+
+  const lower = normalized.toLowerCase();
+  let title = normalized;
+  let description = "";
+
+  if (lower.includes("saqlandi")) {
+    title = "✅ Saqlandi!";
+    description = "Playlistingizni /playlist orqali ko'ring.";
+  } else if (lower.includes("yuborildi")) {
+    title = "📤 Yuborildi!";
+  } else if (lower.includes("yoqtirildi")) {
+    title = "👍 Yoqtirildi!";
+  } else if (lower.includes("o'chirildi") || lower.includes("ombordan olib tashlandi")) {
+    title = "🗑️ O'chirildi!";
   }
-  toastTimerId = window.setTimeout(() => {
-    topToastEl.classList.add("is-hidden");
-  }, 2200);
+
+  openSaveRedirectModal({
+    dialogTitle: "Telegram",
+    title,
+    description,
+    buttonText: "OK",
+  });
 }
 
 function syncProfileUi() {
   if (!profileInputEl || !profileSubmitEl) return;
   profileInputEl.value = selectedTargetUserId;
-  profileInputEl.readOnly = Boolean(selectedTargetUserId);
-  profileInputEl.placeholder = selectedTargetUserId ? "ID saqlangan" : "ID ingizni kiriting";
-  profileSubmitEl.textContent = selectedTargetUserId ? "O'CHIRISH" : "KIRISH";
-  profileSubmitEl.classList.toggle("profile-card__submit--danger", Boolean(selectedTargetUserId));
+  profileInputEl.readOnly = Boolean(selectedTargetUserId) || isAutoDetectedUserId;
+  profileInputEl.placeholder = isAutoDetectedUserId
+    ? "Telegram orqali avtomatik ulandi"
+    : selectedTargetUserId
+      ? "ID saqlangan"
+      : "ID ingizni kiriting";
+  profileSubmitEl.textContent = isAutoDetectedUserId ? "TELEGRAM ORQALI ULANGAN" : selectedTargetUserId ? "O'CHIRISH" : "KIRISH";
+  profileSubmitEl.disabled = isAutoDetectedUserId;
+  profileSubmitEl.classList.toggle("profile-card__submit--danger", Boolean(selectedTargetUserId) && !isAutoDetectedUserId);
   applyProfileAvatarState(profileBadgeEl, getProfileBadgeText());
   applyProfileAvatarState(profileCardBadgeEl, getProfileBadgeText());
   if (profileModalTitleEl) {
@@ -1529,6 +1593,15 @@ function syncProfileUi() {
 }
 
 function loadStoredTargetUserId() {
+  const telegramUserId = getTelegramUserId();
+  if (telegramUserId) {
+    selectedTargetUserId = telegramUserId;
+    isAutoDetectedUserId = true;
+    syncProfileUi();
+    return;
+  }
+
+  isAutoDetectedUserId = false;
   try {
     const savedValue = window.localStorage.getItem(TARGET_USER_STORAGE_KEY) || "";
     selectedTargetUserId = /^\d+$/.test(savedValue) ? savedValue : "";
@@ -1551,6 +1624,11 @@ function persistTargetUserId(value) {
 }
 
 async function submitProfileId() {
+  if (isAutoDetectedUserId) {
+    closeProfileModal();
+    return;
+  }
+
   if (selectedTargetUserId) {
     const wasInOmbor = activeCategory === "Ombor";
     selectedTargetUserId = "";
@@ -1577,6 +1655,7 @@ async function submitProfileId() {
   }
 
   selectedTargetUserId = rawValue;
+  isAutoDetectedUserId = false;
   persistTargetUserId(rawValue);
   telegramProfilePhotoUrl = "";
   syncProfileUi();

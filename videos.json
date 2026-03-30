@@ -1,5 +1,5 @@
 {
-  "next_id": 88,
+  "next_id": 91,
   "items": [
     {
       "id": 1,
@@ -10,7 +10,10 @@
       "comment": "Ajdarho chaqiruvi 🐉",
       "duration": 2560,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 2,
@@ -21,7 +24,10 @@
       "comment": "Dovyurak ritsar ⚔️",
       "duration": 2682,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 3,
@@ -32,7 +38,10 @@
       "comment": "Nimue tamgʻasi 🔮",
       "duration": 2627,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 4,
@@ -43,7 +52,10 @@
       "comment": "Zaharlangan qadaq 🍺",
       "duration": 2669,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 5,
@@ -54,7 +66,10 @@
       "comment": "Lancelot 🗡️",
       "duration": 2644,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 6,
@@ -65,7 +80,10 @@
       "comment": "Har dartga davo",
       "duration": 2617,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 7,
@@ -76,7 +94,10 @@
       "comment": "“Avalon Darvozasi” – BEN VANSTONE 🏰✨",
       "duration": 2618,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 8,
@@ -87,7 +108,10 @@
       "comment": "Intihoning-ibtidosi 🔥",
       "duration": 2639,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 9,
@@ -98,7 +122,10 @@
       "comment": "EXSKALIBUR 🗡️",
       "duration": 2610,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 10,
@@ -109,7 +136,10 @@
       "comment": "Haqiqat lagʻzasi 🔥",
       "duration": 2568,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 11,
@@ -120,7 +150,10 @@
       "comment": "Getred labirinti 🔥",
       "duration": 2566,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 12,
@@ -131,7 +164,10 @@
       "comment": "Qirolga suyiqasd 🗡️👑",
       "duration": 2584,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 13,
@@ -142,7 +178,10 @@
       "comment": "Arturning oʻlimi 🪦",
       "duration": 2630,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 14,
@@ -153,7 +192,10 @@
       "comment": "Cornelius’ sign tavqi lanati 🔥",
       "duration": 2637,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 15,
@@ -164,7 +206,10 @@
       "comment": "Oʻtmish va kelajak malikasi 👑⏳✨",
       "duration": 2645,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 16,
@@ -175,7 +220,10 @@
       "comment": "Dahshatning boshlanishi 😱🔥",
       "duration": 2611,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 17,
@@ -186,7 +234,10 @@
       "comment": "Lancelot and Guinevere",
       "duration": 2648,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 18,
@@ -197,7 +248,10 @@
       "comment": "Sohib Jamol 👑✨ va Mahluq 🐉",
       "duration": 2580,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 19,
@@ -208,7 +262,10 @@
       "comment": "Sohib Jamol 👑✨ va Mahluq 🐉",
       "duration": 2650,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 20,
@@ -219,7 +276,10 @@
       "comment": "Afsun ovchisi 🪄🏹",
       "duration": 2648,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 21,
@@ -230,7 +290,10 @@
       "comment": "Otang gunohlari ⚡🩸",
       "duration": 2645,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 22,
@@ -241,7 +304,10 @@
       "comment": "Hayot muhabbati ❤️",
       "duration": 2604,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 23,
@@ -252,7 +318,10 @@
       "comment": "\"Sweet Dreams\" by LUCY WATKINS 🍬💤",
       "duration": 2626,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 24,
@@ -263,7 +332,10 @@
       "comment": "Sehrgar shogirdi 📜",
       "duration": 2536,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 25,
@@ -274,7 +346,10 @@
       "comment": "Qahramonning kelishi (1-qism) 🏹",
       "duration": 2623,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 26,
@@ -285,7 +360,10 @@
       "comment": "Qahramonning kelishi (2-qism) 🏹",
       "duration": 2903,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 27,
@@ -296,7 +374,10 @@
       "comment": "Ko‘z yoshlari vodiysi (1-qism) 😢",
       "duration": 2603,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 28,
@@ -307,7 +388,10 @@
       "comment": "Ko‘z yoshlari vodiysi (2-qism) 🌧️",
       "duration": 2552,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 29,
@@ -318,7 +402,10 @@
       "comment": "Goblin oltini 🪙",
       "duration": 2610,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 30,
@@ -329,7 +416,10 @@
       "comment": "Gwaine ⚔️",
       "duration": 2577,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 31,
@@ -340,7 +430,10 @@
       "comment": "Kristal g‘or 💎",
       "duration": 2634,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 32,
@@ -351,7 +444,10 @@
       "comment": "O‘zgargan odam 🌓",
       "duration": 2643,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 33,
@@ -362,7 +458,10 @@
       "comment": "Utherning sharpasi 👻",
       "duration": 2592,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 34,
@@ -373,7 +472,10 @@
       "comment": "Dunyo ko‘zi 👁️",
       "duration": 2642,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 35,
@@ -384,7 +486,10 @@
       "comment": "Sevgi shirin tush kabi 💭",
       "duration": 2583,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 36,
@@ -395,7 +500,10 @@
       "comment": "Qal’a malikasi 👸",
       "duration": 2608,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 37,
@@ -406,7 +514,10 @@
       "comment": "Sehrli o‘g‘irlik 🎩",
       "duration": 2645,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 38,
@@ -417,7 +528,10 @@
       "comment": "Kelajak malikasi 👑",
       "duration": 2597,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 39,
@@ -428,7 +542,10 @@
       "comment": "Camelot qulashi 🏰",
       "duration": 2598,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 40,
@@ -439,7 +556,10 @@
       "comment": "Eng qorong‘i soat (1-qism) 🌑",
       "duration": 2614,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 41,
@@ -450,7 +570,10 @@
       "comment": "Eng qorong‘i soat (2-qism) ⏳",
       "duration": 2682,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 42,
@@ -461,7 +584,10 @@
       "comment": "Yovuz kun ⚡",
       "duration": 2682,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 43,
@@ -472,7 +598,10 @@
       "comment": "Aglainning siri 🔐",
       "duration": 2573,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 44,
@@ -483,7 +612,10 @@
       "comment": "Uning otasiz qizi 👨‍👧",
       "duration": 2569,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 45,
@@ -494,7 +626,10 @@
       "comment": "O‘ch olish xizmatkori 🗡️",
       "duration": 2579,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 46,
@@ -505,7 +640,10 @@
       "comment": "Yashirin 🤫",
       "duration": 2587,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 47,
@@ -516,7 +654,10 @@
       "comment": "Lamia 🐍",
       "duration": 2590,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 48,
@@ -527,7 +668,10 @@
       "comment": "Lancelot du Lac ⚔️",
       "duration": 2659,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 49,
@@ -538,7 +682,10 @@
       "comment": "Boshqa qilich 🗡️",
       "duration": 2583,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 50,
@@ -549,7 +696,10 @@
       "comment": "Yovuzlik urug‘i 🌱",
       "duration": 2569,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 51,
@@ -560,7 +710,10 @@
       "comment": "Merlin siri 🔮",
       "duration": 2581,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 52,
@@ -571,7 +724,10 @@
       "comment": "Qilich toshdan chiqarilgan kun 🪨",
       "duration": 2589,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 53,
@@ -582,7 +738,10 @@
       "comment": "Arturning balosi (1-qism) 🐉",
       "duration": 2558,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 54,
@@ -593,7 +752,10 @@
       "comment": "Arturning balosi (2-qism) ⚔️",
       "duration": 2595,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 55,
@@ -604,7 +766,10 @@
       "comment": "O‘lim qo‘shig‘i 🎵",
       "duration": 2563,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 56,
@@ -615,7 +780,10 @@
       "comment": "Yana bir kun 🌤️",
       "duration": 2562,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 57,
@@ -626,7 +794,10 @@
       "comment": "Disir 🔱",
       "duration": 2562,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 58,
@@ -637,7 +808,10 @@
       "comment": "Qorong‘i minora 🏯",
       "duration": 2531,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 59,
@@ -648,7 +822,10 @@
       "comment": "Sirlarning darsi 📖",
       "duration": 2563,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 60,
@@ -659,7 +836,10 @@
       "comment": "Olmos kuni (1-qism) 💎",
       "duration": 2317,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 61,
@@ -670,7 +850,10 @@
       "comment": "Olmos kuni (2-qism) 💠",
       "duration": 2564,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 62,
@@ -681,7 +864,10 @@
       "comment": "Mehr bilan boshqarilgan yurak 💖",
       "duration": 2554,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 63,
@@ -692,7 +878,10 @@
       "comment": "Mehribonlikning qimmat bahosi 🤍",
       "duration": 2564,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 64,
@@ -703,7 +892,10 @@
       "comment": "Zulmat yig‘ilishi 🌑",
       "duration": 2564,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     },
     {
       "id": 65,
@@ -714,128 +906,10 @@
       "comment": "Olmos kuni (yakun🥲) 👑",
       "duration": 2829,
       "web_streamable": false,
-      "web_stream_error": "file_too_big"
-    },
-    {
-      "id": 66,
-      "file_id": "BAACAgQAAxkBAAIza2m4MdSP5rd0RZneGmMJhpO4_63eAAJ7CQACp1aYU6UO5E3tbs04OgQ",
-      "title": "Temir Odam 1-𝑸𝑰𝑺𝑴🔥",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T21:39:18",
-      "comment": "𝐈𝐑𝐎𝐍 𝐌𝐀𝐍 ",
-      "duration": 7564,
-      "web_streamable": false,
-      "web_stream_error": "file_too_big"
-    },
-    {
-      "id": 67,
-      "file_id": "BAACAgQAAxkBAAIzc2m4Mn5yX6fsfjF9u4wsxdeXRwW4AAKBCQACp1aYU3dG7jSZSCOmOgQ",
-      "title": "Temir Odam 2-𝑸𝑰𝑺𝑴🔥",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T21:41:02",
-      "comment": "𝐈𝐑𝐎𝐍 𝐌𝐀𝐍 ",
-      "duration": 7479,
-      "web_streamable": false,
-      "web_stream_error": "file_too_big"
-    },
-    {
-      "id": 68,
-      "file_id": "BAACAgIAAxkBAAIzeWm4Mq6f6y6fjRPGF-37ypsU-NSrAALKBgACOHC5SFEIxKmYr2b8OgQ",
-      "title": "Temir Odam 3-𝑸𝑰𝑺𝑴🔥",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T21:41:40",
-      "comment": "𝐈𝐑𝐎𝐍 𝐌𝐀𝐍 ",
-      "duration": 7840,
-      "web_streamable": false,
-      "web_stream_error": "file_too_big"
-    },
-    {
-      "id": 69,
-      "file_id": "BAACAgIAAxkDAAI-1WnA1dMrOaNQzSkkFLX8ee0AAb6exwACqKAAAgk50UmeI8_uCCym9DoE",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:40:57",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 190,
-      "file_size": 7418667,
-      "web_streamable": true
-    },
-    {
-      "id": 70,
-      "file_id": "BAACAgIAAxkBAAJACGnBXxNzSBPLycb0E_HLXRczMBkdAAIFsgACCTnBSYe9FXphQdavOgQ",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:41:29",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 183,
-      "file_size": 6814570,
-      "web_streamable": true
-    },
-    {
-      "id": 71,
-      "file_id": "BAACAgIAAxkBAAJAE2nBXzEt4gvC7sypxFTuvY1lv_LJAAJZngACmlgAAUrpmnXlIQRUdToE",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:42:32",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 155,
-      "file_size": 3120467,
-      "web_streamable": true
-    },
-    {
-      "id": 72,
-      "file_id": "BAACAgIAAxkBAAJAK2nBX3a-_WoOFDjZ-fvCpLVdQwr0AAJ-ngACmlgAAUrmgzkeRyJbyDoE",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:43:10",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 195,
-      "file_size": 5936123,
-      "web_streamable": true
-    },
-    {
-      "id": 73,
-      "file_id": "BAACAgIAAxkDAAI_N2nA-7gHkTQDSdstJqxld7QJOERsAALXlAACpbDBSTTAPuZMn816OgQ",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:43:30",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 147,
-      "file_size": 5347217,
-      "web_streamable": true
-    },
-    {
-      "id": 74,
-      "file_id": "BAACAgIAAxkBAAJARWnBX6nQcgV99pr9brJR3Ovowz1GAAKQngACmlgAAUrnnrlhSQABg-c6BA",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:43:54",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 181,
-      "file_size": 5818402,
-      "web_streamable": true
-    },
-    {
-      "id": 75,
-      "file_id": "BAACAgIAAxkBAAJAUmnBX8_8wn2Dn2_neilCpaY4ViTFAAKmkgACfrjQSRfB30v_gT1LOgQ",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:44:29",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 88,
-      "file_size": 3648425,
-      "web_streamable": true
-    },
-    {
-      "id": 76,
-      "file_id": "BAACAgIAAxkBAAJAXWnBYA2weA_DGaFV8IzTxYAr3ftyAAKIlAAC3BkISrOePD0ZOUlYOgQ",
-      "title": "Muzic",
-      "added_by": 8239140931,
-      "added_at": "2026-03-23T20:45:35",
-      "comment": "🔥✈️⏳🎥🧭⏰✉️🗝️✅🖊️❤️",
-      "duration": 175,
-      "file_size": 7784085,
-      "web_streamable": true
+      "web_stream_error": "file_too_big",
+      "preview_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/photos/file_108.jpg",
+      "trailer_url": "https://api.telegram.org/file/bot8204726213:AAGnNnPI2VqcN6llRzxXZl6cU8Rx7EJFRwc/videos/file_109.mp4",
+      "file_size": 0
     }
   ]
 }
