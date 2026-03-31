@@ -1224,14 +1224,14 @@ def serve_index():
     return send_from_directory("wepapp", "index.html")
 
 
-@web_app.route("/app.js")
-def serve_app_js():
-    return send_from_directory("wepapp", "app.js")
-
-
-@web_app.route("/styles.css")
-def serve_styles():
-    return send_from_directory("wepapp", "styles.css")
+@web_app.route("/<path:filename>")
+def serve_web_static(filename: str):
+    if filename.startswith("api/"):
+        return jsonify({"success": False, "error": "Not found"}), 404
+    asset_path = BASE_DIR / "wepapp" / filename
+    if asset_path.is_file():
+        return send_from_directory("wepapp", filename)
+    return send_from_directory("wepapp", "index.html")
 
 
 @web_app.route("/api/catalog")
