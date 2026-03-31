@@ -4,9 +4,11 @@ const API_BASE_URL = IS_LOCAL_HOST
   ? `http://127.0.0.1:8000`
   : ""; // Empty string means same origin (current domain)
 const TARGET_USER_STORAGE_KEY = "hidop_target_user_id";
+const THEME_STORAGE_KEY = "hidop_theme";
+const PROFILE_DETAILS_STORAGE_KEY = "hidop_profile_details";
 const categoryOrder = ["HOME", "Pleylist"];
 let allItems = [];
-let activeCategory = "HOME";
+let activeCategory = "LANDING";
 let activeQuery = "";
 let catalogItems = [];
 let savedItems = [];
@@ -18,6 +20,9 @@ const videoStatusCache = new Map();
 let activePreviewVideo = null;
 let currentModalKeydownHandler = null;
 let telegramProfilePhotoUrl = "";
+let sharedProfileUsers = [];
+let isProfileDetailsEditing = false;
+let landingAdData = null;
 let topToastTimerId = null;
 const pendingSendVideoIds = new Set();
 
@@ -74,20 +79,20 @@ async function toggleVideo(button, event) {
   }
 }
 
-// Show play button when video is paused
-document.addEventListener('DOMContentLoaded', function() {
-  document.addEventListener('click', function(e) {
-    if (e.target.tagName === 'VIDEO') {
-      const thumb = e.target.closest('.thumb');
-      const button = thumb.querySelector('.play-button');
-      
-      if (e.target.paused) {
-        if (button) button.style.display = 'flex';
-      } else {
-        if (button) button.style.display = 'none';
-      }
+document.addEventListener("click", (event) => {
+  if (event.target.tagName !== "VIDEO") {
+    const clickedInsideTheme = event.target.closest?.(".telegram-bar__theme");
+    if (!clickedInsideTheme) {
+      closeThemePanel();
     }
-  });
+    return;
+  }
+  const thumb = event.target.closest(".thumb");
+  const button = thumb?.querySelector(".play-button");
+
+  if (button) {
+    button.style.display = event.target.paused ? "flex" : "none";
+  }
 });
 
 window.addEventListener('unhandledrejection', function(e) {
@@ -102,19 +107,38 @@ if (tg) {
 }
 
 const playlistEl = document.getElementById("playlist");
-const filtersEl = document.getElementById("filters");
-const libraryListEl = document.getElementById("libraryList");
-const libraryCountEl = document.getElementById("libraryCount");
-const libraryEmptyEl = document.getElementById("libraryEmpty");
-const libraryTitleEl = document.getElementById("libraryTitle");
-const libraryUserInfoEl = document.getElementById("libraryUserInfo");
-const currentUserIdEl = document.getElementById("currentUserId");
-const changeUserBtnEl = document.getElementById("changeUserBtn");
+const telegramBarEl = document.querySelector(".telegram-bar");
 const brandTitleEl = document.getElementById("brandTitle");
-const searchInputEl = document.getElementById("searchInput");
-const searchToggleEl = document.getElementById("searchToggle");
-const telegramSearchWrapEl = document.getElementById("telegramSearchWrap");
+const themeToggleEl = document.getElementById("themeToggle");
+const themePanelEl = document.getElementById("themePanel");
+const themeOptionEls = Array.from(document.querySelectorAll(".theme-panel__option"));
 const emptyStateEl = document.getElementById("emptyState");
+const sectionHeadingEl = document.getElementById("sectionHeading");
+const landingPanelEl = document.getElementById("landingPanel");
+const landingAdFeatureEl = landingPanelEl?.querySelector(".landing-panel__feature") || null;
+const landingAdMediaEl = document.getElementById("landingAdMedia");
+const landingAdVideoEl = document.getElementById("landingAdVideo");
+const landingAdBadgeEl = document.getElementById("landingAdBadge");
+const landingAdPlayEl = document.getElementById("landingAdPlay");
+const landingAdEyebrowEl = document.getElementById("landingAdEyebrow");
+const landingAdTitleEl = document.getElementById("landingAdTitle");
+const landingAdTextEl = document.getElementById("landingAdText");
+const holoPanelEl = document.getElementById("holoPanel");
+const holoInputEl = document.querySelector(".holo-input");
+const holoResultsCountEl = document.getElementById("holoResultsCount");
+const profileShowcaseEl = document.getElementById("profileShowcase");
+const profileShowcaseAvatarEl = document.getElementById("profileShowcaseAvatar");
+const profileShowcaseTitleEl = document.getElementById("profileShowcaseTitle");
+const profileShowcaseNameEl = document.getElementById("profileShowcaseName");
+const profileShowcaseMetaEl = document.getElementById("profileShowcaseMeta");
+const profileShowcaseSharedEl = document.getElementById("profileShowcaseShared");
+const profileShowcaseSharedLabelEl = document.getElementById("profileShowcaseSharedLabel");
+const profileShowcaseSharedListEl = document.getElementById("profileShowcaseSharedList");
+const profileShowcaseMenuEl = document.getElementById("profileShowcaseMenu");
+const profileDetailsCardEl = document.querySelector(".profile-showcase__details-card");
+const profileDetailsFirstNameEl = document.getElementById("profileDetailsFirstName");
+const profileDetailsLastNameEl = document.getElementById("profileDetailsLastName");
+const profileDetailsSaveEl = document.getElementById("profileDetailsSave");
 const profileModalEl = document.getElementById("profileModal");
 const profileModalBackdropEl = document.getElementById("profileModalBackdrop");
 const profileModalCloseEl = document.getElementById("profileModalClose");
@@ -126,18 +150,20 @@ const saveSuccessModalEl = document.getElementById("saveSuccessModal");
 const saveSuccessStatusEl = document.getElementById("saveSuccessStatus");
 const saveSuccessDescriptionEl = document.getElementById("saveSuccessDescription");
 const saveSuccessButtonEl = document.getElementById("saveSuccessButton");
-const randomToggleEl = document.getElementById("randomToggle");
 const profileBadgeEl = document.querySelector(".profile-badge");
 const profileCardBadgeEl = document.querySelector(".profile-card__badge");
 const profileModalTitleEl = document.getElementById("profileModalTitle");
-const heroDescriptionEl = document.getElementById("heroDescription");
-const heroCatalogCountEl = document.getElementById("heroCatalogCount");
-const heroSavedCountEl = document.getElementById("heroSavedCount");
-const heroProfileStateEl = document.getElementById("heroProfileState");
-const heroActiveCategoryEl = document.getElementById("heroActiveCategory");
-const filterSummaryEl = document.getElementById("filterSummary");
 const sectionTitleEl = document.getElementById("sectionTitle");
 const sectionMetaEl = document.getElementById("sectionMeta");
+const bottomDockHomeEl = document.getElementById("bottomDockHome");
+const bottomDockPlaylistEl = document.getElementById("bottomDockPlaylist");
+const bottomDockCreateEl = document.getElementById("bottomDockCreate");
+const bottomDockSearchEl = document.getElementById("bottomDockSearch");
+const bottomDockProfileEl = document.getElementById("bottomDockProfile");
+const bottomDockAvatarEl = document.getElementById("bottomDockAvatar");
+const bottomDockCatalogCountEl = document.getElementById("bottomDockCatalogCount");
+const bottomDockSavedCountEl = document.getElementById("bottomDockSavedCount");
+const bottomDockResultsCountEl = document.getElementById("bottomDockResultsCount");
 
 function formatDuration(seconds = 0) {
   const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -157,6 +183,45 @@ function showAppAlert(message) {
     return;
   }
   window.alert(text);
+}
+
+function applyTheme(themeName = "default") {
+  const normalizedTheme = ["default", "sunset", "ocean", "forest", "summer"].includes(themeName) ? themeName : "default";
+  document.body.dataset.theme = normalizedTheme;
+  themeOptionEls.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.theme === normalizedTheme);
+  });
+}
+
+function loadStoredTheme() {
+  try {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY) || "default";
+    applyTheme(savedTheme);
+  } catch {
+    applyTheme("default");
+  }
+}
+
+function persistTheme(themeName) {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, themeName);
+  } catch {
+    // Ignore storage issues.
+  }
+}
+
+function closeThemePanel() {
+  themePanelEl?.classList.add("is-hidden");
+  themeToggleEl?.setAttribute("aria-expanded", "false");
+}
+
+function toggleThemePanel() {
+  if (!themePanelEl || !themeToggleEl) {
+    return;
+  }
+  const willOpen = themePanelEl.classList.contains("is-hidden");
+  themePanelEl.classList.toggle("is-hidden", !willOpen);
+  themeToggleEl.setAttribute("aria-expanded", String(willOpen));
 }
 
 function buildVideoFileUrl(itemId) {
@@ -256,13 +321,212 @@ function getTelegramUserPhotoUrl() {
   return String(photoUrl).trim();
 }
 
+function openExternalLink(url) {
+  const href = String(url || "").trim();
+  if (!href) return;
+  if (tg?.openLink) {
+    tg.openLink(href);
+    return;
+  }
+  window.open(href, "_blank", "noopener");
+}
+
+function renderLandingAd() {
+  if (!landingPanelEl || !landingAdMediaEl || !landingAdVideoEl || !landingAdFeatureEl) {
+    return;
+  }
+
+  const hasAd = Boolean(landingAdData?.video_url);
+  landingAdFeatureEl.classList.toggle("is-hidden", !hasAd);
+  landingAdMediaEl.classList.toggle("has-video", hasAd);
+  landingAdFeatureEl?.classList.toggle("is-clickable", Boolean(landingAdData?.click_url));
+
+  if (landingAdBadgeEl) {
+    landingAdBadgeEl.textContent = hasAd ? "Reklama" : "Preview";
+  }
+  if (landingAdEyebrowEl) {
+    landingAdEyebrowEl.textContent = hasAd ? "Hamkorlik" : "Tavsiya";
+  }
+  if (landingAdTitleEl) {
+    landingAdTitleEl.textContent = hasAd
+      ? "Admin qo'shgan reklama videosi hozir shu yerda avtomatik yuradi."
+      : "Bitta preview blok orqali landingni jonliroq ko'rinishda qoldirdik.";
+  }
+  if (landingAdTextEl) {
+    landingAdTextEl.textContent = hasAd
+      ? String(landingAdData?.comment || "").trim()
+      : "Pastdagi 2-bo'limga o'tsangiz barcha videolarni ko'rishingiz mumkin.";
+  }
+
+  if (hasAd) {
+    landingAdVideoEl.src = normalizeApiUrl(landingAdData.video_url);
+    landingAdVideoEl.classList.remove("is-hidden");
+    landingAdPlayEl?.classList.add("is-hidden");
+    const playPromise = landingAdVideoEl.play();
+    if (playPromise?.catch) {
+      playPromise.catch(() => {});
+    }
+  } else {
+    landingAdVideoEl.pause();
+    landingAdVideoEl.removeAttribute("src");
+    landingAdVideoEl.load();
+    landingAdVideoEl.classList.add("is-hidden");
+    landingAdPlayEl?.classList.remove("is-hidden");
+  }
+}
+
+async function loadLandingAd() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/landing-ad`, { cache: "no-store" });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok && payload?.ok && payload?.item?.video_url) {
+      landingAdData = payload.item;
+    } else {
+      landingAdData = null;
+    }
+  } catch (error) {
+    console.error("Landing reklama yuklanmadi:", error);
+    landingAdData = null;
+  }
+
+  renderLandingAd();
+}
+
+function getProfileDetailsLookupKey() {
+  return selectedTargetUserId || getTelegramUserId() || "guest";
+}
+
+function loadProfileDetailsPayload() {
+  const lookupKey = getProfileDetailsLookupKey();
+  try {
+    const raw = window.localStorage.getItem(`${PROFILE_DETAILS_STORAGE_KEY}:${lookupKey}`) || "";
+    const parsed = raw ? JSON.parse(raw) : {};
+    return typeof parsed === "object" && parsed ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistProfileDetailsPayload(payload) {
+  const lookupKey = getProfileDetailsLookupKey();
+  try {
+    window.localStorage.setItem(`${PROFILE_DETAILS_STORAGE_KEY}:${lookupKey}`, JSON.stringify(payload));
+  } catch {
+    // Ignore storage issues.
+  }
+}
+
+function formatProfileShortName(payload = loadProfileDetailsPayload()) {
+  const firstName = String(payload.firstName || "").trim();
+  const lastName = String(payload.lastName || "").trim();
+  if (!firstName || !lastName) {
+    return "";
+  }
+  return `${lastName.slice(0, 1).toUpperCase()}.${firstName}`;
+}
+
+function syncProfileDetailsUi() {
+  if (!profileDetailsCardEl || !profileDetailsFirstNameEl || !profileDetailsLastNameEl || !profileDetailsSaveEl) {
+    return;
+  }
+
+  const payload = loadProfileDetailsPayload();
+  const firstName = String(payload.firstName || "");
+  const lastName = String(payload.lastName || "");
+  const saved = Boolean(payload.saved);
+
+  profileDetailsFirstNameEl.value = firstName;
+  profileDetailsLastNameEl.value = lastName;
+  profileDetailsCardEl.classList.toggle("is-hidden", saved && !isProfileDetailsEditing);
+  if (profileShowcaseNameEl) {
+    const shortName = saved ? formatProfileShortName(payload) : "";
+    profileShowcaseNameEl.textContent = shortName;
+    profileShowcaseNameEl.classList.toggle("is-hidden", !shortName);
+  }
+}
+
+function openProfileDetailsEditor() {
+  isProfileDetailsEditing = true;
+  syncProfileDetailsUi();
+  profileDetailsFirstNameEl?.focus();
+}
+
+function saveProfileDetails() {
+  if (!profileDetailsCardEl || !profileDetailsFirstNameEl || !profileDetailsLastNameEl) {
+    return;
+  }
+
+  const firstName = String(profileDetailsFirstNameEl.value || "").trim();
+  const lastName = String(profileDetailsLastNameEl.value || "").trim();
+
+  if (!firstName || !lastName) {
+    showAppAlert("Ism va familyani kiriting.");
+    return;
+  }
+
+  persistProfileDetailsPayload({
+    firstName,
+    lastName,
+    saved: true,
+  });
+  isProfileDetailsEditing = false;
+  syncProfileDetailsUi();
+  showTopToast("saqlandi ✅");
+}
+
+function getSharedUsersLookupUserId() {
+  const selectedId = Number(selectedTargetUserId || 0);
+  if (selectedId > 0) {
+    return selectedId;
+  }
+  const telegramId = Number(getTelegramUserId() || 0);
+  return telegramId > 0 ? telegramId : 0;
+}
+
+function getInitials(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "U";
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  const joined = parts.slice(0, 2).map((part) => part[0] || "").join("");
+  return (joined || normalized.slice(0, 1)).toUpperCase();
+}
+
+function renderSharedProfileUsers() {
+  if (!profileShowcaseSharedEl || !profileShowcaseSharedLabelEl || !profileShowcaseSharedListEl) {
+    return;
+  }
+
+  const count = sharedProfileUsers.length;
+  profileShowcaseSharedEl.classList.toggle("is-hidden", count === 0);
+  profileShowcaseSharedLabelEl.textContent = `${count} ta odamga ulashilgan`;
+
+  if (!count) {
+    profileShowcaseSharedListEl.innerHTML = "";
+    return;
+  }
+
+  profileShowcaseSharedListEl.innerHTML = sharedProfileUsers.map((item) => {
+    const title = String(item?.title || "").trim();
+    const photoUrl = String(item?.photo_url || "").trim();
+    const fallback = getInitials(title || item?.user_id);
+    const safeTitle = escapeHtml(title || `ID ${item?.user_id || ""}`);
+    const safePhoto = photoUrl.replace(/"/g, "&quot;");
+
+    return `
+      <span class="profile-showcase__shared-avatar ${photoUrl ? "has-photo" : ""}" title="${safeTitle}" aria-label="${safeTitle}">
+        ${photoUrl ? `<img src="${safePhoto}" alt="${safeTitle}" />` : escapeHtml(fallback)}
+      </span>
+    `;
+  }).join("");
+}
+
 function applyProfileAvatarState(element, fallbackText) {
   if (!element) return;
 
   const photoUrl = getTelegramUserPhotoUrl();
   element.textContent = fallbackText;
   element.classList.toggle("has-photo", Boolean(photoUrl));
-  element.closest(".telegram-bar__profile")?.classList.toggle("has-photo-avatar", Boolean(photoUrl));
+  element.closest(".telegram-bar__profile, .bottom-dock__item--profile")?.classList.toggle("has-photo-avatar", Boolean(photoUrl));
 
   if (photoUrl) {
     element.innerHTML = `<img class="profile-avatar-image" src="${photoUrl.replace(/"/g, "&quot;")}" alt="Profil rasmi" />`;
@@ -296,19 +560,51 @@ async function loadTelegramProfilePhoto() {
   syncProfileUi();
 }
 
-function getVisibleSourceItems() {
-  return activeCategory === "Pleylist" ? savedItems : allItems;
+async function loadSharedProfileUsers() {
+  const lookupUserId = getSharedUsersLookupUserId();
+  if (!lookupUserId) {
+    sharedProfileUsers = [];
+    renderSharedProfileUsers();
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/shared-users?user_id=${encodeURIComponent(lookupUserId)}`, {
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok && payload?.ok && Array.isArray(payload.items)) {
+      sharedProfileUsers = payload.items;
+    } else {
+      sharedProfileUsers = [];
+    }
+  } catch (error) {
+    console.error("Shared users yuklanmadi:", error);
+    sharedProfileUsers = [];
+  }
+
+  renderSharedProfileUsers();
 }
 
-function getLibrarySourceItems() {
-  return activeCategory === "Pleylist" ? savedItems : catalogItems;
+function getVisibleSourceItems() {
+  if (activeCategory === "LANDING") {
+    return [];
+  }
+  if (activeCategory === "EMPTY") {
+    return allItems;
+  }
+  if (activeCategory === "PROFILE") {
+    return [];
+  }
+  return activeCategory === "Pleylist" ? savedItems : allItems;
 }
 
 function getFilteredItems(items = getVisibleSourceItems()) {
   return items.filter((item) => {
     const itemCategory = String(item?.category || "").trim();
     const isPlaylistItem = itemCategory === "Pleylist" || itemCategory === "Ombor";
-    const categoryOk = activeCategory === "HOME"
+    const categoryOk = activeCategory === "EMPTY"
+      || activeCategory === "HOME"
       || activeCategory === "Pleylist"
       || itemCategory === activeCategory
       || (activeCategory === "Pleylist" && isPlaylistItem);
@@ -322,36 +618,73 @@ function syncBodyOverlayState() {
 }
 
 function syncSearchState() {
-  if (!searchToggleEl || !searchInputEl) return;
-  const isOpen = !telegramSearchWrapEl?.classList.contains("is-hidden");
-  searchToggleEl.setAttribute("aria-expanded", String(isOpen));
-  document.body.classList.toggle("search-open", isOpen);
+  document.body.classList.remove("search-open");
+  bottomDockSearchEl?.classList.remove("is-active");
+}
+
+function syncBottomDockState() {
+  const profileOpen = Boolean(profileModalEl && !profileModalEl.classList.contains("is-hidden"));
+  let activeDock = "home";
+
+  if (profileOpen) {
+    activeDock = "profile";
+  } else if (activeCategory === "PROFILE") {
+    activeDock = "profile";
+  } else if (activeCategory === "EMPTY") {
+    activeDock = "empty";
+  } else if (activeCategory === "Pleylist") {
+    activeDock = "saved";
+  } else if (activeCategory === "HOME") {
+    activeDock = "playlist";
+  }
+
+  bottomDockHomeEl?.classList.toggle("is-active", activeDock === "home");
+  bottomDockPlaylistEl?.classList.toggle("is-active", activeDock === "playlist");
+  bottomDockCreateEl?.classList.toggle("is-active", activeDock === "saved");
+  bottomDockSearchEl?.classList.toggle("is-active", activeDock === "empty");
+  bottomDockProfileEl?.classList.toggle("is-active", activeDock === "profile");
+}
+
+function syncBottomDockCounts() {
+  if (bottomDockCatalogCountEl) {
+    bottomDockCatalogCountEl.textContent = String(catalogItems.length);
+  }
+  if (bottomDockSavedCountEl) {
+    bottomDockSavedCountEl.textContent = String(savedItems.length);
+  }
+}
+
+function setActiveCategory(category) {
+  if (category === "Pleylist" && !selectedTargetUserId) {
+    openProfileModal();
+    profileInputEl?.focus();
+    return;
+  }
+  activeCategory = category;
+  if (category !== "EMPTY" && holoInputEl) {
+    holoInputEl.value = "";
+  }
+  if (category !== "EMPTY") {
+    activeQuery = "";
+  }
+  buildFilters(allItems);
+  render();
+  syncBottomDockState();
 }
 
 function openSearch() {
-  telegramSearchWrapEl?.classList.remove("is-hidden");
-  syncSearchState();
-  searchInputEl?.focus();
-  searchInputEl?.select();
+  showTopToast("Qidiruv keyin qo'shiladi.");
 }
 
 function closeSearch({ clearQuery = true } = {}) {
-  telegramSearchWrapEl?.classList.add("is-hidden");
-  if (clearQuery && searchInputEl) {
-    searchInputEl.value = "";
+  if (clearQuery) {
     activeQuery = "";
     render();
-    renderLibrary();
   }
   syncSearchState();
 }
 
 function toggleSearch() {
-  const isOpen = !telegramSearchWrapEl?.classList.contains("is-hidden");
-  if (isOpen) {
-    closeSearch({ clearQuery: true });
-    return;
-  }
   openSearch();
 }
 
@@ -365,37 +698,45 @@ function rerenderPreservingScroll(callback) {
 }
 
 function updateDashboard(visibleItems = getFilteredItems()) {
-  if (heroCatalogCountEl) {
-    heroCatalogCountEl.textContent = String(catalogItems.length);
+  const showCatalogChrome = !((activeCategory === "LANDING" || activeCategory === "EMPTY") && !activeQuery);
+  if (holoPanelEl) {
+    holoPanelEl.classList.toggle("is-hidden", activeCategory !== "EMPTY");
   }
-  if (heroSavedCountEl) {
-    heroSavedCountEl.textContent = String(savedItems.length);
+  if (landingPanelEl) {
+    landingPanelEl.classList.toggle("is-hidden", activeCategory !== "LANDING");
   }
-  if (heroProfileStateEl) {
-    heroProfileStateEl.textContent = selectedTargetUserId ? `#${selectedTargetUserId}` : "Ulanmagan";
+  if (profileShowcaseEl) {
+    profileShowcaseEl.classList.toggle("is-hidden", activeCategory !== "PROFILE");
   }
-  if (heroActiveCategoryEl) {
-    heroActiveCategoryEl.textContent = activeCategory;
+  if (holoResultsCountEl) {
+    const showResultsCount = activeCategory === "EMPTY" && Boolean(activeQuery.trim());
+    holoResultsCountEl.classList.toggle("is-hidden", !showResultsCount);
+    if (showResultsCount) {
+      holoResultsCountEl.textContent = `${visibleItems.length} ta natija`;
+    }
   }
-  if (filterSummaryEl) {
-    filterSummaryEl.textContent = activeQuery
-      ? `Qidiruv: ${activeQuery}`
-      : activeCategory === "Pleylist"
-        ? "Shaxsiy pleylist"
-        : "Asosiy katalog";
+  if (bottomDockResultsCountEl) {
+    const showResultsCount = activeCategory === "EMPTY" && Boolean(activeQuery.trim());
+    bottomDockResultsCountEl.classList.toggle("is-hidden", !showResultsCount);
+    if (showResultsCount) {
+      bottomDockResultsCountEl.textContent = String(visibleItems.length);
+    }
   }
-  if (heroDescriptionEl) {
-    heroDescriptionEl.textContent = activeQuery
-      ? `"${activeQuery}" bo'yicha topilgan videolar saralanmoqda.`
-      : activeCategory === "Pleylist"
-        ? (selectedTargetUserId
-          ? "Saqlangan videolar, like va yuborish oqimi shu yerda jamlandi."
-          : "Pleylistni ko'rish uchun profilingizni ulang.")
-        : "Katalogdagi videolarni preview qiling, saqlang va botga yuboring.";
+  if (telegramBarEl) {
+    telegramBarEl.style.display = activeCategory === "LANDING" ? "" : "none";
+  }
+  if (sectionHeadingEl) {
+    sectionHeadingEl.style.display = (showCatalogChrome && activeCategory !== "PROFILE") ? "" : "none";
   }
   if (sectionTitleEl) {
     sectionTitleEl.textContent = activeQuery
       ? "Qidiruv natijalari"
+      : activeCategory === "LANDING"
+        ? "Bosh sahifa"
+      : activeCategory === "PROFILE"
+        ? "Profil"
+      : activeCategory === "EMPTY"
+        ? "Maxsus panel"
       : activeCategory === "Pleylist"
         ? "Saqlangan videolar"
         : "So'nggi videolar";
@@ -403,15 +744,40 @@ function updateDashboard(visibleItems = getFilteredItems()) {
   if (sectionMetaEl) {
     sectionMetaEl.textContent = activeQuery
       ? `${visibleItems.length} ta natija`
+      : activeCategory === "LANDING"
+        ? "Bo'lim tanlang"
+      : activeCategory === "PROFILE"
+        ? "Foydalanuvchi oynasi"
+      : activeCategory === "EMPTY"
+        ? "Interfeys tayyor"
       : `${visibleItems.length} ta video`;
   }
   if (emptyStateEl) {
     emptyStateEl.textContent = activeQuery
       ? "Qidiruv bo'yicha hech narsa topilmadi."
+      : activeCategory === "LANDING"
+        ? ""
+      : activeCategory === "PROFILE"
+        ? ""
+      : activeCategory === "EMPTY"
+        ? ""
       : activeCategory === "Pleylist"
         ? "Pleylistda hali video yo'q."
         : "Katalogda hozircha video topilmadi.";
   }
+  if (holoInputEl && activeCategory === "EMPTY" && holoInputEl.value !== activeQuery) {
+    holoInputEl.value = activeQuery;
+  }
+  if (profileShowcaseTitleEl) {
+    profileShowcaseTitleEl.textContent = selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT USER";
+  }
+  if (profileShowcaseMetaEl) {
+    profileShowcaseMetaEl.textContent = selectedTargetUserId
+      ? "Telegram profilingiz shu bo'limda ko'rinadi."
+      : "Profil rasmini ko'rish uchun Telegram profilingizdan foydalaniladi.";
+  }
+  renderSharedProfileUsers();
+  syncProfileDetailsUi();
   document.body.dataset.category = activeCategory.toLowerCase();
 }
 
@@ -661,45 +1027,18 @@ function getActiveOwnerId() {
 
 async function refreshSavedItems() {
   savedItems = await loadSavedItems();
+  syncBottomDockCounts();
 }
 
 function buildFilters(items) {
-  if (!filtersEl) return;
-
-  const orderedCategories = categoryOrder;
-  const counts = {
-    HOME: catalogItems.length,
-    Pleylist: savedItems.length,
-  };
-
-  filtersEl.innerHTML = "";
-  orderedCategories.forEach((category) => {
-    const button = document.createElement("button");
-    button.className = "filter-chip";
-    button.type = "button";
-    button.classList.toggle("is-active", category === activeCategory);
-    button.classList.toggle("is-locked", category === "Pleylist" && !selectedTargetUserId);
-    button.setAttribute("aria-pressed", String(category === activeCategory));
-    button.innerHTML = `<span>${category}</span><strong>${counts[category] || 0}</strong>`;
-    button.addEventListener("click", () => {
-      if (category === "Pleylist" && !selectedTargetUserId) {
-        openProfileModal();
-        profileInputEl?.focus();
-        return;
-      }
-      activeCategory = category;
-      buildFilters(items);
-      render();
-      renderLibrary();
-    });
-    filtersEl.appendChild(button);
-  });
+  void items;
 }
 
 function refreshView() {
   buildFilters(allItems);
+  syncBottomDockCounts();
   render();
-  renderLibrary();
+  syncBottomDockState();
 }
 
 async function refreshCatalogView() {
@@ -799,18 +1138,10 @@ function removeSavedVideoFromUi(itemId, triggerElement = null) {
   savedItems = savedItems.filter((savedItem) => Number(savedItem.id) !== Number(itemId));
 
   const card = triggerElement?.closest(".card");
-  const row = triggerElement?.closest(".library-item");
   card?.remove();
-  row?.remove();
 
   const visibleItems = sortBySearchRelevance(getFilteredItems(getVisibleSourceItems()));
   updateDashboard(visibleItems);
-
-  if (libraryCountEl) {
-    const libraryItems = sortBySearchRelevance(getFilteredItems(getLibrarySourceItems()));
-    libraryCountEl.textContent = `${libraryItems.length} ta`;
-    libraryEmptyEl?.classList.toggle("is-hidden", libraryItems.length > 0);
-  }
 
   emptyStateEl?.classList.toggle("is-hidden", visibleItems.length > 0);
 }
@@ -878,7 +1209,6 @@ async function saveVideoToProfile(item) {
     await refreshSavedItems();
     rerenderPreservingScroll(() => {
       render();
-      renderLibrary();
     });
     showTopToast(
       result?.already_saved
@@ -987,35 +1317,66 @@ async function likeVideoFromModal(item) {
 }
 
 function matchesSearch(item) {
-  if (!activeQuery) return true;
-  const haystack = [
-    item.title || "",
-    item.comment || "",
-    item.category || "",
-    String(item.id ?? ""),
-  ].join(" ").toLowerCase();
-  return haystack.includes(activeQuery);
+  const query = activeQuery.trim();
+  if (!query) return true;
+  const normalizedQuery = query.toLowerCase();
+  const idText = String(item.id ?? "").toLowerCase().trim();
+
+  if (/^\d+$/.test(normalizedQuery)) {
+    return idText === normalizedQuery;
+  }
+
+  const fields = [
+    String(item.title || "").toLowerCase(),
+    String(item.comment || "").toLowerCase(),
+    String(item.category || "").toLowerCase(),
+    idText,
+  ];
+  const haystack = fields.join(" ");
+  if (haystack.includes(normalizedQuery)) {
+    return true;
+  }
+
+  const words = fields
+    .flatMap((field) => field.split(/[^a-z0-9\u00c0-\u024f\u0400-\u04ff]+/i))
+    .filter(Boolean);
+
+  if (words.some((word) => word.startsWith(normalizedQuery))) {
+    return true;
+  }
+
+  if (normalizedQuery.length <= 2) {
+    return words.some((word) => word[0] === normalizedQuery[0]);
+  }
+
+  return false;
 }
 
 function getSearchScore(item) {
-  if (!activeQuery) return 0;
+  const query = activeQuery.trim();
+  if (!query) return 0;
+  const normalizedQuery = query.toLowerCase();
 
   const title = String(item.title || "").toLowerCase().trim();
   const comment = String(item.comment || "").toLowerCase().trim();
   const category = String(item.category || "").toLowerCase().trim();
   const idText = String(item.id ?? "").toLowerCase().trim();
 
-  if (title === activeQuery) return 1000;
-  if (idText === activeQuery) return 950;
-  if (title.startsWith(activeQuery)) return 900 - Math.min(title.length, 200);
+  if (/^\d+$/.test(normalizedQuery)) {
+    return idText === normalizedQuery ? 2000 : -1;
+  }
+
+  if (title === normalizedQuery) return 1000;
+  if (idText === normalizedQuery) return 950;
+  if (title.startsWith(normalizedQuery)) return 900 - Math.min(title.length, 200);
 
   const titleWords = title.split(/\s+/).filter(Boolean);
-  if (titleWords.some((word) => word.startsWith(activeQuery))) return 820;
+  if (titleWords.some((word) => word.startsWith(normalizedQuery))) return 820;
 
-  if (comment.startsWith(activeQuery) || category.startsWith(activeQuery)) return 760;
-  if (title.includes(activeQuery)) return 680;
-  if (comment.includes(activeQuery) || category.includes(activeQuery)) return 560;
-  if (idText.includes(activeQuery)) return 520;
+  if (comment.startsWith(normalizedQuery) || category.startsWith(normalizedQuery)) return 760;
+  if (title.includes(normalizedQuery)) return 680;
+  if (comment.includes(normalizedQuery) || category.includes(normalizedQuery)) return 560;
+  if (idText.includes(normalizedQuery)) return 520;
 
   return 0;
 }
@@ -1109,95 +1470,19 @@ function sortBySearchRelevance(items) {
   });
 }
 
-function pickRandomItem(items, excludedItemId = null) {
-  const sourceItems = Array.isArray(items) ? items.filter(Boolean) : [];
-  if (!sourceItems.length) {
-    return null;
-  }
-
-  const filteredItems = sourceItems.filter((item) => Number(item?.id || 0) !== Number(excludedItemId || 0));
-  const candidates = filteredItems.length ? filteredItems : sourceItems;
-  return candidates[Math.floor(Math.random() * candidates.length)] || null;
-}
-
-function renderLibrary() {
-  if (!libraryListEl || !libraryCountEl || !libraryEmptyEl || !libraryTitleEl || !libraryUserInfoEl) {
-    return;
-  }
-
-  const sourceItems = getLibrarySourceItems();
-  const orderedCatalog = sortBySearchRelevance(getFilteredItems(sourceItems));
-
-  if (activeCategory === "Pleylist") {
-    libraryTitleEl.textContent = "Shaxsiy pleylist";
-    if (selectedTargetUserId && currentUserIdEl) {
-      libraryUserInfoEl.style.display = "flex";
-      currentUserIdEl.textContent = `ID ${selectedTargetUserId}`;
-    } else {
-      libraryUserInfoEl.style.display = "none";
-    }
-  } else {
-    libraryTitleEl.textContent = "Botga qo'shilgan videolar";
-    libraryUserInfoEl.style.display = "none";
-  }
-
-  libraryListEl.innerHTML = "";
-  libraryCountEl.textContent = `${orderedCatalog.length} ta`;
-  libraryEmptyEl.classList.toggle("is-hidden", orderedCatalog.length > 0);
-  libraryEmptyEl.textContent = activeCategory === "Pleylist"
-    ? "Pleylistda hali video yo'q."
-    : "Katalog ro'yxatida hozircha video yo'q.";
-
-  orderedCatalog.forEach((item) => {
-    const safeId = escapeHtml(item.id ?? "?");
-    const title = escapeHtml(getDisplayTitle(item));
-    const description = escapeHtml(getDisplayDescription(item));
-    const category = escapeHtml(item.category || detectCategory(item));
-    const ageLabel = escapeHtml(item.ageLabel || "Kutubxonada");
-    const posterUrl = normalizeApiUrl(item.poster_url || item.preview_url || "");
-    const row = document.createElement("article");
-    row.className = "library-item";
-    row.innerHTML = `
-      <div class="library-item__poster"${posterUrl ? ` style="background-image: url('${escapeHtml(posterUrl)}')"` : ""}>
-        <div class="library-item__id">#${safeId}</div>
-      </div>
-      <div class="library-item__body">
-        <div class="library-item__top">
-          <h3 class="library-item__title">${title}</h3>
-          <span class="library-item__chip">${category}</span>
-        </div>
-        <p class="library-item__meta">${description} • ${ageLabel}</p>
-      </div>
-      <div class="library-item__side">
-        <div class="library-item__duration">${formatDuration(Number(item.duration || 0))}</div>
-        <div class="library-item__actions">
-          <button class="send-button" type="button">Yuborish</button>
-          ${activeCategory === "Pleylist" ? '<button class="more-button" type="button">O\'chirish</button>' : ""}
-        </div>
-      </div>
-    `;
-    row.querySelector(".send-button")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      sendVideoToBot(item);
-    });
-    row.querySelector(".more-button")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteSavedVideo(item, event.currentTarget);
-    });
-    row.addEventListener("click", () => {
-      openVideoModal(item);
-    });
-    libraryListEl.appendChild(row);
-  });
-}
-
 function render() {
   const sourceItems = getVisibleSourceItems();
   const ordered = sortBySearchRelevance(getFilteredItems(sourceItems));
 
   playlistEl.innerHTML = "";
-  emptyStateEl.classList.toggle("is-hidden", ordered.length > 0);
   updateDashboard(ordered);
+
+  if ((activeCategory === "LANDING" || activeCategory === "EMPTY" || activeCategory === "PROFILE") && !activeQuery) {
+    emptyStateEl?.classList.add("is-hidden");
+    return;
+  }
+
+  emptyStateEl.classList.toggle("is-hidden", ordered.length > 0);
 
   if (!ordered.length) {
     return;
@@ -1486,33 +1771,6 @@ function getCurrentModalItem() {
   return findItemById(itemId);
 }
 
-searchToggleEl?.addEventListener("click", () => {
-  toggleSearch();
-});
-
-searchInputEl?.addEventListener("input", (event) => {
-  activeQuery = event.target.value.trim().toLowerCase();
-  render();
-  renderLibrary();
-});
-
-searchInputEl?.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    closeSearch({ clearQuery: true });
-    return;
-  }
-  if (event.key === "Enter") {
-    closeSearch({ clearQuery: false });
-  }
-});
-
-searchInputEl?.addEventListener("blur", (event) => {
-  if (event.relatedTarget === searchToggleEl) {
-    return;
-  }
-  closeSearch({ clearQuery: false });
-});
-
 function openProfileModal() {
   if (isAutoDetectedUserId) {
     return;
@@ -1576,12 +1834,20 @@ function syncProfileUi() {
   profileSubmitEl.classList.toggle("profile-card__submit--danger", Boolean(selectedTargetUserId) && !isAutoDetectedUserId);
   applyProfileAvatarState(profileBadgeEl, getProfileBadgeText());
   applyProfileAvatarState(profileCardBadgeEl, getProfileBadgeText());
+  applyProfileAvatarState(bottomDockAvatarEl, getProfileBadgeText());
+  applyProfileAvatarState(profileShowcaseAvatarEl, getProfileBadgeText());
+  renderSharedProfileUsers();
   if (profileModalTitleEl) {
     profileModalTitleEl.textContent = selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT User";
   }
   if (profileButtonEl) {
     profileButtonEl.setAttribute("aria-label", selectedTargetUserId ? `Profil ${selectedTargetUserId}` : "Profil");
   }
+  if (bottomDockProfileEl) {
+    bottomDockProfileEl.setAttribute("aria-label", selectedTargetUserId ? `Profil ${selectedTargetUserId}` : "Profil");
+  }
+  syncProfileDetailsUi();
+  syncBottomDockState();
 }
 
 function loadStoredTargetUserId() {
@@ -1625,16 +1891,17 @@ async function submitProfileId() {
     const wasInOmbor = activeCategory === "Pleylist";
     selectedTargetUserId = "";
     telegramProfilePhotoUrl = "";
+    sharedProfileUsers = [];
     persistTargetUserId("");
     savedItems = [];
     if (wasInOmbor) {
-      activeCategory = "HOME";
+      activeCategory = "LANDING";
     }
     syncProfileUi();
     await loadTelegramProfilePhoto();
+    await loadSharedProfileUsers();
     buildFilters(allItems);
     render();
-    renderLibrary();
     showTopToast("o'chirildi ✅");
     return;
   }
@@ -1652,19 +1919,42 @@ async function submitProfileId() {
   telegramProfilePhotoUrl = "";
   syncProfileUi();
   await loadTelegramProfilePhoto();
+  await loadSharedProfileUsers();
   await refreshSavedItems();
   activeCategory = "Pleylist";
   buildFilters(allItems);
   render();
-  renderLibrary();
   closeProfileModal();
   showTopToast("saqlandi ✅");
 }
 
 profileButtonEl?.addEventListener("click", openProfileModal);
+bottomDockHomeEl?.addEventListener("click", () => {
+  closeSearch({ clearQuery: false });
+  setActiveCategory("LANDING");
+});
+bottomDockPlaylistEl?.addEventListener("click", () => {
+  closeSearch({ clearQuery: false });
+  setActiveCategory("HOME");
+});
+bottomDockCreateEl?.addEventListener("click", () => {
+  closeSearch({ clearQuery: false });
+  setActiveCategory("Pleylist");
+});
+bottomDockSearchEl?.addEventListener("click", () => {
+  closeSearch({ clearQuery: false });
+  setActiveCategory("EMPTY");
+  holoInputEl?.focus();
+});
+bottomDockProfileEl?.addEventListener("click", () => {
+  closeSearch({ clearQuery: false });
+  setActiveCategory("PROFILE");
+});
 profileModalBackdropEl?.addEventListener("click", closeProfileModal);
 profileModalCloseEl?.addEventListener("click", closeProfileModal);
 profileSubmitEl?.addEventListener("click", submitProfileId);
+profileShowcaseMenuEl?.addEventListener("click", openProfileDetailsEditor);
+profileDetailsSaveEl?.addEventListener("click", saveProfileDetails);
 saveSuccessButtonEl?.addEventListener("click", () => {
   closeSaveRedirectModal();
 });
@@ -1680,51 +1970,55 @@ profileInputEl?.addEventListener("keydown", (event) => {
   }
 });
 
-changeUserBtnEl?.addEventListener("click", () => {
-  openProfileModal();
-  profileInputEl?.focus();
+profileDetailsLastNameEl?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    saveProfileDetails();
+  }
 });
 
-randomToggleEl?.addEventListener("click", () => {
-  const allCards = document.querySelectorAll(".card");
-  allCards.forEach((card, index) => {
-    card.style.transition = "transform 0.5s ease, opacity 0.5s ease";
-    card.style.transform = "rotateY(360deg) scale(0.94)";
-    card.style.opacity = "0.7";
-
-    setTimeout(() => {
-      card.style.transform = "rotateY(720deg) scale(1)";
-      card.style.opacity = "1";
-    }, index * 100);
+landingAdFeatureEl?.addEventListener("click", () => {
+  if (landingAdData?.click_url) {
+    openExternalLink(landingAdData.click_url);
+  }
+});
+themeToggleEl?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleThemePanel();
+});
+themeOptionEls.forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const themeName = button.dataset.theme || "default";
+    applyTheme(themeName);
+    persistTheme(themeName);
+    closeThemePanel();
   });
+});
 
-  setTimeout(() => {
-    const randomItem = pickRandomItem(getFilteredItems(getVisibleSourceItems()));
-    if (!randomItem) {
-      showTopToast("Video topilmadi.");
-      allCards.forEach((card) => {
-        card.style.transform = "";
-        card.style.opacity = "";
-      });
-      return;
-    }
-    openVideoModal(randomItem);
+holoInputEl?.addEventListener("input", (event) => {
+  activeQuery = String(event.target.value || "").toLowerCase();
+  render();
+});
 
-    setTimeout(() => {
-      allCards.forEach((card) => {
-        card.style.transform = "";
-        card.style.opacity = "";
-      });
-    }, 500);
-  }, allCards.length * 100 + 500);
+holoInputEl?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    holoInputEl.value = "";
+    activeQuery = "";
+    render();
+  }
 });
 
 // Initialize the app
 async function initializeApp() {
+  loadStoredTheme();
   loadStoredTargetUserId();
   syncSearchState();
   syncBodyOverlayState();
   await loadTelegramProfilePhoto();
+  await loadSharedProfileUsers();
+  await loadLandingAd();
 
   allItems = await loadItems();
   await refreshSavedItems();

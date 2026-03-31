@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=20260331-1614" />
+  <link rel="stylesheet" href="./styles.css?v=20260331-2344" />
 </head>
 <body>
   <div class="app-shell">
@@ -15,43 +15,43 @@
 
     <header class="telegram-bar">
       <div class="telegram-bar__brand">
-        <div class="telegram-bar__logo">H</div>
+        <div class="telegram-bar__theme">
+          <button class="telegram-bar__logo" id="themeToggle" type="button" aria-label="Rang tanlash" aria-expanded="false">
+            H
+          </button>
+          <div class="theme-panel is-hidden" id="themePanel" aria-label="Rang variantlari">
+            <button class="theme-panel__option is-active" type="button" data-theme="default">
+              <span class="theme-panel__swatch theme-panel__swatch--default"></span>
+              <span>Tungi</span>
+            </button>
+            <button class="theme-panel__option" type="button" data-theme="sunset">
+              <span class="theme-panel__swatch theme-panel__swatch--sunset"></span>
+              <span>Sunset</span>
+            </button>
+            <button class="theme-panel__option" type="button" data-theme="ocean">
+              <span class="theme-panel__swatch theme-panel__swatch--ocean"></span>
+              <span>Ocean</span>
+            </button>
+            <button class="theme-panel__option" type="button" data-theme="forest">
+              <span class="theme-panel__swatch theme-panel__swatch--forest"></span>
+              <span>Forest</span>
+            </button>
+            <button class="theme-panel__option" type="button" data-theme="summer">
+              <span class="theme-panel__swatch theme-panel__swatch--summer"></span>
+              <span>Yoz</span>
+            </button>
+          </div>
+        </div>
         <div class="telegram-bar__content">
           <strong id="brandTitle">Hidop_bot</strong>
         </div>
         <div class="telegram-bar__actions">
-          <button class="telegram-bar__icon search-toggle" id="searchToggle" type="button" aria-label="Qidiruvni ochish" aria-expanded="false">
-            <span></span>
-          </button>
           <button class="telegram-bar__icon telegram-bar__profile" type="button" aria-label="Profil">
             <span class="profile-badge">31</span>
           </button>
         </div>
       </div>
-      <div class="telegram-search is-hidden" id="telegramSearchWrap">
-        <input
-          class="telegram-search__input"
-          id="searchInput"
-          type="search"
-          placeholder="Video nomi, ID yoki bo'lim bo'yicha qidiring..."
-          autocomplete="off"
-        />
-      </div>
     </header>
-
-    <div class="promo-ticker" aria-label="E'lon banner">
-      <div class="promo-ticker__viewport">
-        <div class="promo-ticker__track">
-          <span>Videolarni tez toping, preview qiling va botga yuboring.</span>
-          <span>Videolarni tez toping, preview qiling va botga yuboring.</span>
-          <span>Videolarni tez toping, preview qiling va botga yuboring.</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="quick-filters">
-      <div class="filters filters--inline" id="filters"></div>
-    </div>
 
     <div class="profile-modal is-hidden" id="profileModal" aria-hidden="true">
       <div class="profile-modal__backdrop" id="profileModalBackdrop"></div>
@@ -80,7 +80,7 @@
     <section class="sheet">
       <main class="content">
         <section class="content-block">
-          <div class="section-heading">
+          <div class="section-heading" id="sectionHeading">
             <div>
               <p class="section-heading__eyebrow">Katalog</p>
               <h2 id="sectionTitle">So'nggi videolar</h2>
@@ -88,14 +88,162 @@
             <p class="section-heading__meta" id="sectionMeta">0 ta video</p>
           </div>
 
+          <section class="holo-panel is-hidden" id="holoPanel" aria-label="Maxsus qidiruv">
+            <div class="input-container">
+              <div class="input-field-container">
+                <input type="text" class="holo-input" placeholder="Kino nomi yoki ID" />
+                <div class="holo-results-count is-hidden" id="holoResultsCount">0 ta natija</div>
+                <div class="input-border"></div>
+                <div class="holo-scan-line"></div>
+                <div class="input-glow"></div>
+                <div class="input-active-indicator"></div>
+                <div class="input-label">Qidiruv paneli</div>
+
+                <div class="input-data-visualization">
+                  <div class="data-segment" style="--index: 1;"></div>
+                  <div class="data-segment" style="--index: 2;"></div>
+                  <div class="data-segment" style="--index: 3;"></div>
+                  <div class="data-segment" style="--index: 4;"></div>
+                  <div class="data-segment" style="--index: 5;"></div>
+                  <div class="data-segment" style="--index: 6;"></div>
+                  <div class="data-segment" style="--index: 7;"></div>
+                  <div class="data-segment" style="--index: 8;"></div>
+                  <div class="data-segment" style="--index: 9;"></div>
+                  <div class="data-segment" style="--index: 10;"></div>
+                  <div class="data-segment" style="--index: 11;"></div>
+                  <div class="data-segment" style="--index: 12;"></div>
+                  <div class="data-segment" style="--index: 13;"></div>
+                  <div class="data-segment" style="--index: 14;"></div>
+                  <div class="data-segment" style="--index: 15;"></div>
+                  <div class="data-segment" style="--index: 16;"></div>
+                  <div class="data-segment" style="--index: 17;"></div>
+                  <div class="data-segment" style="--index: 18;"></div>
+                  <div class="data-segment" style="--index: 19;"></div>
+                  <div class="data-segment" style="--index: 20;"></div>
+                </div>
+
+                <div class="input-particles">
+                  <div class="input-particle" style="--index: 1; top: 20%; left: 10%;"></div>
+                  <div class="input-particle" style="--index: 2; top: 65%; left: 25%;"></div>
+                  <div class="input-particle" style="--index: 3; top: 40%; left: 40%;"></div>
+                  <div class="input-particle" style="--index: 4; top: 75%; left: 60%;"></div>
+                  <div class="input-particle" style="--index: 5; top: 30%; left: 75%;"></div>
+                  <div class="input-particle" style="--index: 6; top: 60%; left: 90%;"></div>
+                </div>
+
+                <div class="input-holo-overlay"></div>
+
+                <div class="interface-lines">
+                  <div class="interface-line"></div>
+                  <div class="interface-line"></div>
+                  <div class="interface-line"></div>
+                  <div class="interface-line"></div>
+                </div>
+
+                <div class="hex-decoration"></div>
+                <div class="input-status">Ready for input</div>
+                <div class="power-indicator"></div>
+
+                <div class="input-decoration">
+                  <div class="decoration-dot"></div>
+                  <div class="decoration-line"></div>
+                  <div class="decoration-dot"></div>
+                  <div class="decoration-line"></div>
+                  <div class="decoration-dot"></div>
+                  <div class="decoration-line"></div>
+                  <div class="decoration-dot"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="landing-panel is-hidden" id="landingPanel" aria-label="Bot haqida">
+            <div class="landing-panel__hero">
+              <p class="landing-panel__eyebrow">Hidop Bot</p>
+              <h3 class="landing-panel__title">Kinolarni tez topish, saqlash va botga yuborish uchun qulay joy.</h3>
+              <p class="landing-panel__description">
+                Bu web app orqali oxirgi videolarni ko'rasiz, saqlangan videolarni boshqarasiz, ID bo'yicha qidirasiz
+                va profilingiz orqali o'zingizga mos bo'limlarni ochasiz.
+              </p>
+            </div>
+            <article class="landing-panel__feature">
+              <div class="landing-panel__feature-media" id="landingAdMedia">
+                <video class="landing-panel__video is-hidden" id="landingAdVideo" muted loop playsinline autoplay preload="metadata"></video>
+                <span class="landing-panel__feature-badge" id="landingAdBadge">Preview</span>
+                <button class="landing-panel__play" type="button" id="landingAdPlay" aria-label="Video preview">
+                  <span class="landing-panel__play-icon"></span>
+                </button>
+              </div>
+              <div class="landing-panel__feature-content" id="landingAdContent">
+                <p class="landing-panel__feature-eyebrow" id="landingAdEyebrow">Tavsiya</p>
+                <h4 class="landing-panel__feature-title" id="landingAdTitle">Bitta preview blok orqali landingni jonliroq ko'rinishda qoldirdik.</h4>
+                <p class="landing-panel__feature-text" id="landingAdText">Pastdagi 2-bo'limga o'tsangiz barcha videolarni ko'rishingiz mumkin.</p>
+              </div>
+            </article>
+          </section>
+
+          <section class="profile-showcase is-hidden" id="profileShowcase" aria-label="Profil oynasi">
+            <div class="profile-showcase__card">
+              <button class="profile-showcase__menu" id="profileShowcaseMenu" type="button" aria-label="Profilni tahrirlash">
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
+              <div class="profile-showcase__avatar" id="profileShowcaseAvatar">U</div>
+              <p class="profile-showcase__eyebrow">Profil</p>
+              <p class="profile-showcase__name is-hidden" id="profileShowcaseName">A.umidjon</p>
+              <h3 class="profile-showcase__title" id="profileShowcaseTitle">HIDOP BOT USER</h3>
+              <p class="profile-showcase__meta" id="profileShowcaseMeta">Telegram profilingiz shu yerda ko'rinadi.</p>
+              <div class="profile-showcase__shared is-hidden" id="profileShowcaseShared">
+                <p class="profile-showcase__shared-label" id="profileShowcaseSharedLabel">0 ta odamga ulashilgan</p>
+                <div class="profile-showcase__shared-list" id="profileShowcaseSharedList"></div>
+              </div>
+            </div>
+            <div class="profile-showcase__details-card">
+              <p class="profile-showcase__details-eyebrow">Shaxsiy ma'lumot</p>
+              <div class="profile-showcase__fields">
+                <label class="profile-showcase__field">
+                  <span class="profile-showcase__field-label">Ism</span>
+                  <input class="profile-showcase__input" id="profileDetailsFirstName" type="text" placeholder="Ismingiz" autocomplete="given-name" />
+                </label>
+                <label class="profile-showcase__field">
+                  <span class="profile-showcase__field-label">Familya</span>
+                  <input class="profile-showcase__input" id="profileDetailsLastName" type="text" placeholder="Familyangiz" autocomplete="family-name" />
+                </label>
+              </div>
+              <button class="profile-showcase__save" id="profileDetailsSave" type="button">Saqlash</button>
+            </div>
+          </section>
+
           <section class="playlist" id="playlist"></section>
           <p class="empty is-hidden" id="emptyState">Hech narsa topilmadi.</p>
         </section>
       </main>
     </section>
+
+    <nav class="bottom-dock" aria-label="Pastki navigatsiya">
+      <button class="bottom-dock__item is-active" id="bottomDockHome" type="button" aria-label="Bosh sahifa">
+        <span class="bottom-dock__icon bottom-dock__icon--home"></span>
+      </button>
+      <button class="bottom-dock__item" id="bottomDockPlaylist" type="button" aria-label="Videolar">
+        <span class="bottom-dock__count" id="bottomDockCatalogCount">0</span>
+        <span class="bottom-dock__icon bottom-dock__icon--reels"></span>
+      </button>
+      <button class="bottom-dock__item" id="bottomDockCreate" type="button" aria-label="Saqlangan videolar">
+        <span class="bottom-dock__count bottom-dock__count--saved" id="bottomDockSavedCount">0</span>
+        <span class="bottom-dock__icon bottom-dock__icon--saved"></span>
+      </button>
+      <button class="bottom-dock__item bottom-dock__item--empty" id="bottomDockSearch" type="button" aria-label="Qidiruv paneli">
+        <span class="bottom-dock__count bottom-dock__count--results is-hidden" id="bottomDockResultsCount">0</span>
+        <span class="bottom-dock__icon bottom-dock__icon--search" aria-hidden="true"></span>
+      </button>
+      <button class="bottom-dock__item bottom-dock__item--profile" id="bottomDockProfile" type="button" aria-label="Profil">
+        <span class="bottom-dock__avatar" id="bottomDockAvatar">U</span>
+      </button>
+    </nav>
   </div>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="./app.js?v=20260331-1614"></script>
+  <script src="./app.js?v=20260331-2344"></script>
 </body>
 </html>

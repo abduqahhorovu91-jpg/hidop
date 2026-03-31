@@ -3,10 +3,11 @@
 Simple HTTP server for Hidop Bot without Flask
 """
 import http.server
-import socketserver
 import json
+import logging
 import os
 import shutil
+import socketserver
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
@@ -21,6 +22,9 @@ def load_env():
                     os.environ[key] = value
 
 load_env()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = BASE_DIR / "data"
@@ -69,7 +73,8 @@ def load_video_catalog():
             with open(VIDEOS_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         return {"next_id": 1, "items": []}
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to load video catalog: %s", exc)
         return {"next_id": 1, "items": []}
 
 # Load saved videos
@@ -79,11 +84,17 @@ def load_saved_videos():
             with open(SAVED_VIDEOS_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         return {}
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to load saved videos: %s", exc)
         return {}
 
-VIDEO_CATALOG = load_video_catalog()
-SAVED_VIDEOS = load_saved_videos()
+
+def get_video_catalog():
+    return load_video_catalog()
+
+
+def get_saved_videos():
+    return load_saved_videos()
 
 class HidopHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -91,6 +102,8 @@ class HidopHandler(http.server.SimpleHTTPRequestHandler):
     
     def do_GET(self):
         parsed_path = urlparse(self.path)
+        video_catalog = get_video_catalog()
+        saved_videos_map = get_saved_videos()
         
         if parsed_path.path == '/api/catalog':
             self.send_response(200)
@@ -98,7 +111,7 @@ class HidopHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             
-            response = {"success": True, "items": VIDEO_CATALOG.get("items", [])}
+            response = {"success": True, "items": video_catalog.get("items", [])}
             self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
             return
         
@@ -108,7 +121,7 @@ class HidopHandler(http.server.SimpleHTTPRequestHandler):
             results = []
             search_query = query.lower().strip()
             
-            for item in VIDEO_CATALOG.get("items", []):
+            for item in video_catalog.get("items", []):
                 title = str(item.get("title", "")).lower()
                 if search_query in title:
                     results.append(item)
@@ -123,15 +136,12 @@ class HidopHandler(http.server.SimpleHTTPRequestHandler):
             return
         
         elif parsed_path.path.startswith('/api/bot-token'):
-            # Return bot token for video access
-            self.send_response(200)
+            self.send_response(403)
             self.send_header('Content-type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            
-            # Get token from environment
-            bot_token = os.getenv('BOT_TOKEN', '')
-            response = {"success": True, "token": bot_token}
+
+            response = {"success": False, "error": "forbidden"}
             self.wfile.write(json.dumps(response).encode('utf-8'))
             return
         
@@ -150,14 +160,14 @@ class HidopHandler(http.server.SimpleHTTPRequestHandler):
                 return
             
             # Get saved videos for this user
-            user_saved = SAVED_VIDEOS.get(user_id, [])
+            user_saved = saved_videos_map.get(user_id, [])
             
             # Get full video info for saved videos
             saved_videos = []
             for saved_item in user_saved:
                 video_id = saved_item.get("video_id")
                 video = None
-                for item in VIDEO_CATALOG.get("items", []):
+                for item in video_catalog.get("items", []):
                     if item.get("id") == video_id:
                         video = item
                         break
@@ -193,7 +203,7 @@ def run_server(port=8000):
     with socketserver.TCPServer(("", port), handler) as httpd:
         print(f"Starting Hidop Bot web server on port {port}...")
         print(f"Open http://localhost:{port} in your browser")
-        print(f"Videos loaded: {len(VIDEO_CATALOG.get('items', []))}")
+        print(f"Videos loaded: {len(get_video_catalog().get('items', []))}")
         httpd.serve_forever()
 
 if __name__ == '__main__':
