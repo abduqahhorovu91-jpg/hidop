@@ -503,6 +503,7 @@ def normalize_video_catalog_item(item: dict[str, object]) -> dict[str, object]:
     normalized = dict(item)
 
     normalized["preview_url"] = str(normalized.get("preview_url", "") or "").strip()
+    normalized["poster_url"] = str(normalized.get("poster_url", "") or "").strip()
     normalized["trailer_url"] = str(normalized.get("trailer_url", "") or "").strip()
 
     file_size = parse_int(normalized.get("file_size"))
@@ -1161,7 +1162,7 @@ def build_video_stream_info(
 def serialize_video_item(video: dict[str, object]) -> dict[str, object]:
     payload = dict(video)
     stream_info = build_video_stream_info(video, probe=False)
-    payload["poster_url"] = str(video.get("preview_url", "") or "")
+    payload["poster_url"] = str(video.get("poster_url", "") or video.get("preview_url", "") or "")
     payload["trailer_url"] = str(video.get("trailer_url", "") or "")
     payload["preview_url"] = str(stream_info.get("stream_url", "") or "")
     payload["web_streamable"] = stream_info.get("playable")
