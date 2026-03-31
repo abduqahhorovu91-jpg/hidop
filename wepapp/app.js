@@ -19,6 +19,7 @@ let activePreviewVideo = null;
 let currentModalKeydownHandler = null;
 let telegramProfilePhotoUrl = "";
 let topToastTimerId = null;
+const pendingSendVideoIds = new Set();
 
 // Error handling for missing elements
 window.addEventListener('error', function(e) {
@@ -112,6 +113,7 @@ const changeUserBtnEl = document.getElementById("changeUserBtn");
 const brandTitleEl = document.getElementById("brandTitle");
 const searchInputEl = document.getElementById("searchInput");
 const searchToggleEl = document.getElementById("searchToggle");
+const telegramSearchWrapEl = document.getElementById("telegramSearchWrap");
 const emptyStateEl = document.getElementById("emptyState");
 const profileModalEl = document.getElementById("profileModal");
 const profileModalBackdropEl = document.getElementById("profileModalBackdrop");
@@ -137,54 +139,6 @@ const filterSummaryEl = document.getElementById("filterSummary");
 const sectionTitleEl = document.getElementById("sectionTitle");
 const sectionMetaEl = document.getElementById("sectionMeta");
 
-const demoItems = [
-  {
-      "id": 1,
-      "file_id": "BAACAgEAAxkBAAIu8Gm3vu0Dvp9swEyiSwst554j836hAAL8AQACrKmZRnTp4jk1Ax14OgQ",
-      "title": "Merlin 1-𝑸𝑰𝑺𝑴🔮✨",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T13:28:32",
-      "comment": "Ajdarho chaqiruvi 🐉",
-      "duration": 2560
-    },
-    {
-      "id": 2,
-      "file_id": "BAACAgEAAxkBAAIu-2m3v0hhr487En89rfzwcDRjBLx0AAL9AQACrKmZRks-q5eB0CQDOgQ",
-      "title": "Merlin 2-𝑸𝑰𝑺𝑴🔮✨",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T13:31:21",
-      "comment": "Dovyurak ritsar ⚔️",
-      "duration": 2682
-    },
-    {
-      "id": 3,
-      "file_id": "BAACAgEAAxkBAAIvBGm3v-YzCbUw_URmvI_86KP6RNXoAAL-AQACrKmZRkue2CBG41c7OgQ",
-      "title": "Merlin 3-𝑸𝑰𝑺𝑴🔮✨",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T13:35:37",
-      "comment": "Nimue tamgʻasi 🔮",
-      "duration": 2627
-    },
-    {
-      "id": 4,
-      "file_id": "BAACAgEAAxkBAAIvEGm3wQE238obCOmv3pO0bY496oLZAAL_AQACrKmZRjFwCCeP2ZJtOgQ",
-      "title": "Merlin 4-𝑸𝑰𝑺𝑴🔮✨",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T13:37:48",
-      "comment": "Zaharlangan qadaq 🍺",
-      "duration": 2669
-    },
-    {
-      "id": 5,
-      "file_id": "BAACAgEAAxkBAAIvGWm3wWhPHcsTnUqe_sUVtehuGHrmAAMCAAKsqZlGAAHL5a2-VsY6OgQ",
-      "title": "Merlin 5-𝑸𝑰𝑺𝑴🔮✨",
-      "added_by": 8239140931,
-      "added_at": "2026-03-16T13:39:58",
-      "comment": "Lancelot 🗡️",
-      "duration": 2644
-    },
-];
-
 function formatDuration(seconds = 0) {
   const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
   const hours = Math.floor(totalSeconds / 3600);
@@ -194,6 +148,15 @@ function formatDuration(seconds = 0) {
     return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function showAppAlert(message) {
+  const text = String(message || "").trim() || "Xatolik yuz berdi.";
+  if (tg?.showAlert) {
+    tg.showAlert(text);
+    return;
+  }
+  window.alert(text);
 }
 
 function buildVideoFileUrl(itemId) {
@@ -360,10 +323,36 @@ function syncBodyOverlayState() {
 
 function syncSearchState() {
   if (!searchToggleEl || !searchInputEl) return;
-  const isOpen = !searchInputEl.classList.contains("is-hidden");
+  const isOpen = !telegramSearchWrapEl?.classList.contains("is-hidden");
   searchToggleEl.setAttribute("aria-expanded", String(isOpen));
   document.body.classList.toggle("search-open", isOpen);
-  brandTitleEl?.parentElement?.classList.toggle("is-searching", isOpen);
+}
+
+function openSearch() {
+  telegramSearchWrapEl?.classList.remove("is-hidden");
+  syncSearchState();
+  searchInputEl?.focus();
+  searchInputEl?.select();
+}
+
+function closeSearch({ clearQuery = true } = {}) {
+  telegramSearchWrapEl?.classList.add("is-hidden");
+  if (clearQuery && searchInputEl) {
+    searchInputEl.value = "";
+    activeQuery = "";
+    render();
+    renderLibrary();
+  }
+  syncSearchState();
+}
+
+function toggleSearch() {
+  const isOpen = !telegramSearchWrapEl?.classList.contains("is-hidden");
+  if (isOpen) {
+    closeSearch({ clearQuery: true });
+    return;
+  }
+  openSearch();
 }
 
 function rerenderPreservingScroll(callback) {
@@ -592,24 +581,18 @@ function detectPalette(item) {
 
 async function loadItems() {
   try {
-    console.log("Fetching videos from API...");
     const response = await fetch(`${API_BASE_URL}/api/catalog`, { cache: "no-store" });
-    console.log("API response:", response.status);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const payload = await response.json();
-    console.log("API payload:", payload);
-    
     const items = Array.isArray(payload?.items) ? payload.items : [];
-    console.log("Items from API:", items.length);
     
     if (items.length === 0) {
-      console.log("No videos found, using demo items");
-      catalogItems = [...demoItems];
-      return demoItems;
+      catalogItems = [];
+      return [];
     }
     
     catalogItems = items.map((item) => ({
@@ -631,14 +614,12 @@ async function loadItems() {
       file_size: Number(item.file_size || 0),
     }));
     
-    console.log("Processed catalog items:", catalogItems.length);
     return catalogItems;
     
   } catch (error) {
     console.error("Failed to load videos:", error);
-    console.log("Using demo items as fallback");
-    catalogItems = [...demoItems];
-    return demoItems;
+    catalogItems = [];
+    return [];
   }
 }
 
@@ -675,7 +656,7 @@ async function loadSavedItems() {
 }
 
 function getActiveOwnerId() {
-  return selectedTargetUserId || "";
+  return selectedTargetUserId || getTelegramUserId() || "";
 }
 
 async function refreshSavedItems() {
@@ -766,11 +747,16 @@ function getCardAccent(item) {
   }
 }
 
-function sendVideoToBot(item) {
+async function sendVideoToBot(item) {
   if (!item) return;
-  if (!selectedTargetUserId) {
+  const targetUserId = selectedTargetUserId || getTelegramUserId();
+  if (!targetUserId) {
     openProfileModal();
     profileInputEl?.focus();
+    return;
+  }
+  if (pendingSendVideoIds.has(item.id)) {
+    showTopToast("yuborilmoqda...");
     return;
   }
   const payload = {
@@ -778,51 +764,35 @@ function sendVideoToBot(item) {
     video_id: item.id,
     title: item.saved_name || item.title || "",
     source: activeCategory,
-    target_user_id: selectedTargetUserId,
+    target_user_id: targetUserId,
   };
 
-  if (tg) {
-    try {
-      fetch(`${API_BASE_URL}/api/send-video`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-        .then((response) => response.json())
-        .then((result) => {
-          if (result?.ok) {
-            showTopToast("yuborildi ✅");
-            return;
-          }
-          window.alert(result?.message || result?.error || "Video yuborilmadi.");
-        })
-        .catch(() => {
-          window.alert("Video yuborishda xatolik bo'ldi.");
-        });
-      showTopToast("yuborilmoqda ✅");
-      return;
-    } catch (_) {
-      window.alert("Video yuborishda xatolik bo'ldi.");
+  pendingSendVideoIds.add(item.id);
+  showTopToast("yuborilmoqda...");
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/send-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (response.ok && result?.ok) {
+      tg?.HapticFeedback?.notificationOccurred?.("success");
+      showTopToast("yuborildi ✅");
       return;
     }
-  }
 
-  fetch(`${API_BASE_URL}/api/send-video`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
-    .then((response) => response.json())
-    .then((result) => {
-      if (result?.ok) {
-        showTopToast("yuborildi ✅");
-        return;
-      }
-      window.alert(result?.message || result?.error || "Video yuborilmadi.");
-    })
-    .catch(() => {
-      window.alert("Video yuborishda xatolik bo'ldi.");
-    });
+    tg?.HapticFeedback?.notificationOccurred?.("error");
+    showAppAlert(result?.message || result?.error || "Video yuborilmadi.");
+  } catch (error) {
+    console.error("Video yuborishda xatolik:", error);
+    tg?.HapticFeedback?.notificationOccurred?.("error");
+    showAppAlert("Video yuborishda xatolik bo'ldi.");
+  } finally {
+    pendingSendVideoIds.delete(item.id);
+  }
 }
 
 function removeSavedVideoFromUi(itemId, triggerElement = null) {
@@ -864,20 +834,21 @@ function deleteSavedVideo(item, triggerElement = null) {
     .then((response) => response.json())
     .then((result) => {
       if (!result?.ok) {
-        window.alert(result?.message || result?.error || "Video o'chirilmadi.");
+        showAppAlert(result?.message || result?.error || "Video o'chirilmadi.");
         return;
       }
       removeSavedVideoFromUi(item.id, triggerElement);
       showTopToast("pleylistdan olib tashlandi ✅");
     })
     .catch(() => {
-      window.alert("Video o'chirishda xatolik bo'ldi.");
+      showAppAlert("Video o'chirishda xatolik bo'ldi.");
     });
 }
 
 function ensureTargetUserId() {
-  if (selectedTargetUserId) {
-    return selectedTargetUserId;
+  const ownerId = getActiveOwnerId();
+  if (ownerId) {
+    return ownerId;
   }
   openProfileModal();
   profileInputEl?.focus();
@@ -901,7 +872,7 @@ async function saveVideoToProfile(item) {
     });
     const result = await response.json();
     if (!result?.ok) {
-      window.alert(result?.message || result?.error || "Video saqlanmadi.");
+      showAppAlert(result?.message || result?.error || "Video saqlanmadi.");
       return false;
     }
     await refreshSavedItems();
@@ -916,7 +887,7 @@ async function saveVideoToProfile(item) {
     );
     return true;
   } catch {
-    window.alert("Video saqlashda xatolik bo'ldi.");
+    showAppAlert("Video saqlashda xatolik bo'ldi.");
     return false;
   }
 }
@@ -1004,13 +975,13 @@ async function likeVideoFromModal(item) {
     });
     const result = await response.json();
     if (!result?.ok) {
-      window.alert(result?.message || result?.error || "Like qo'yilmadi.");
+      showAppAlert(result?.message || result?.error || "Like qo'yilmadi.");
       return null;
     }
     showTopToast("yoqtirildi 👍");
     return result;
   } catch {
-    window.alert("Like qo'yishda xatolik bo'ldi.");
+    showAppAlert("Like qo'yishda xatolik bo'ldi.");
     return null;
   }
 }
@@ -1516,17 +1487,7 @@ function getCurrentModalItem() {
 }
 
 searchToggleEl?.addEventListener("click", () => {
-  searchInputEl.classList.toggle("is-hidden");
-  syncSearchState();
-  if (!searchInputEl.classList.contains("is-hidden")) {
-    searchInputEl.focus();
-    searchInputEl.select();
-  } else {
-    searchInputEl.value = "";
-    activeQuery = "";
-    render();
-    renderLibrary();
-  }
+  toggleSearch();
 });
 
 searchInputEl?.addEventListener("input", (event) => {
@@ -1537,21 +1498,19 @@ searchInputEl?.addEventListener("input", (event) => {
 
 searchInputEl?.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    searchInputEl.classList.add("is-hidden");
-    searchInputEl.value = "";
-    activeQuery = "";
-    syncSearchState();
-    render();
-    renderLibrary();
+    closeSearch({ clearQuery: true });
+    return;
+  }
+  if (event.key === "Enter") {
+    closeSearch({ clearQuery: false });
   }
 });
 
-searchInputEl?.addEventListener("blur", () => {
-  if (searchInputEl.value.trim()) {
+searchInputEl?.addEventListener("blur", (event) => {
+  if (event.relatedTarget === searchToggleEl) {
     return;
   }
-  searchInputEl.classList.add("is-hidden");
-  syncSearchState();
+  closeSearch({ clearQuery: false });
 });
 
 function openProfileModal() {
@@ -1682,7 +1641,7 @@ async function submitProfileId() {
 
   const rawValue = String(profileInputEl?.value || "").trim();
   if (!/^\d+$/.test(rawValue)) {
-    window.alert("ID raqam bo'lishi kerak.");
+    showAppAlert("ID raqam bo'lishi kerak.");
     profileInputEl?.focus();
     return;
   }

@@ -44,6 +44,7 @@ load_dotenv()
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(Path.cwd() / ".env")
 DEFAULT_DATA_DIR = BASE_DIR / "data"
+DEFAULT_SEED_DIR = BASE_DIR / "seed"
 DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
 
 
@@ -97,6 +98,10 @@ def data_file(filename: str) -> Path:
     ensure_data_dir()
     return DATA_DIR / filename
 
+
+def seed_file(filename: str) -> Path:
+    return DEFAULT_SEED_DIR / filename
+
 # Database functions (inline since shared_db was removed)
 def db_load_saved_videos():
     try:
@@ -118,9 +123,16 @@ def db_load_users():
 
 def db_load_video_catalog():
     try:
-        if VIDEO_CATALOG_FILE.exists():
-            with open(VIDEO_CATALOG_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+        sources = [VIDEO_CATALOG_FILE, seed_file("videos.json")]
+        for source in sources:
+            if not source.exists():
+                continue
+            with open(source, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+            if isinstance(payload, dict) and isinstance(payload.get("items"), list) and payload.get("items"):
+                return payload
+            if source == VIDEO_CATALOG_FILE and isinstance(payload, dict):
+                continue
         return {"next_id": 1, "items": []}
     except Exception:
         return {"next_id": 1, "items": []}
@@ -1207,6 +1219,23 @@ def send_video_api():
     try:
         asyncio.run(send_video_to_user(target_user_id, video_id))
         return jsonify({"ok": True})
+    except BadRequest as exc:
+        error_text = str(exc).lower()
+        if "chat not found" in error_text:
+            message = "Bot foydalanuvchini topa olmadi. Botga /start yuborib qayta urinib ko'ring."
+        elif "bot was blocked by the user" in error_text:
+            message = "Bot bloklangan. Botni ochib /start bosing, keyin qayta yuboring."
+        elif "user is deactivated" in error_text:
+            message = "Bu foydalanuvchi akkaunti faol emas."
+        else:
+            message = "Telegram video yuborishni rad etdi. Botga /start yuborib qayta urinib ko'ring."
+        logger.warning(
+            "Telegram BadRequest via WebApp (%s -> %s): %s",
+            video_id,
+            target_user_id,
+            exc,
+        )
+        return jsonify({"ok": False, "error": message}), 400
     except Exception as exc:
         logger.exception("WebApp orqali video yuborilmadi (%s -> %s): %s", video_id, target_user_id, exc)
         return jsonify({"ok": False, "error": "Video yuborishda xatolik bo'ldi."}), 500

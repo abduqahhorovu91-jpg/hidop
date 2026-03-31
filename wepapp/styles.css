@@ -183,36 +183,41 @@ body[data-category="pleylist"] .library-item__id {
   font-size: 22px;
   font-weight: 700;
   line-height: 1.05;
-  transition: opacity 180ms ease, transform 180ms ease;
 }
 
-.telegram-bar__search-input {
+.telegram-search {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 22px;
+  background:
+    linear-gradient(145deg, rgba(12, 18, 28, 0.9), rgba(18, 28, 40, 0.82));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(18px);
+}
+
+.telegram-search__input {
   width: 100%;
   min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   font: inherit;
-  font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1.2;
   outline: none;
 }
 
-.telegram-bar__search-input::placeholder {
-  color: rgba(205, 219, 233, 0.52);
+.telegram-search__input::placeholder {
+  color: rgba(205, 219, 233, 0.56);
 }
 
-.telegram-bar__content.is-searching strong {
-  opacity: 0;
-  transform: translateY(-6px);
-  pointer-events: none;
-}
-
-.telegram-bar__content.is-searching .telegram-bar__search-input {
-  display: block !important;
+.telegram-search__input:focus {
+  border-color: rgba(119, 241, 207, 0.36);
+  box-shadow: 0 0 0 4px rgba(119, 241, 207, 0.08);
 }
 
 .telegram-bar__status {
@@ -416,8 +421,7 @@ body[data-category="pleylist"] .library-item__id {
 }
 
 body.search-open .promo-ticker,
-body.search-open .quick-filters,
-body.search-open .section-heading {
+body.search-open .quick-filters {
   display: none !important;
 }
 
@@ -1531,6 +1535,10 @@ body.search-open .section-heading {
     gap: 12px;
   }
 
+  .telegram-search {
+    margin-top: 6px;
+  }
+
   .telegram-bar__actions {
     justify-content: flex-end;
     gap: 10px;
@@ -1626,6 +1634,16 @@ body.search-open .section-heading {
     width: 58px;
     height: 58px;
     font-size: 18px;
+  }
+
+  .telegram-search {
+    padding: 8px 10px;
+    border-radius: 18px;
+  }
+
+  .telegram-search__input {
+    padding: 11px 12px;
+    font-size: 14px;
   }
 
   .promo-ticker {

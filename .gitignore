@@ -5,6 +5,8 @@ __pycache__/
 data/
 users.json
 videos.json
+!seed/
+!seed/videos.json
 uploaders.json
 saved_videos.json
 video_reactions.json
