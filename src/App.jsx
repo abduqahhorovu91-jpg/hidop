@@ -273,6 +273,7 @@ export default function App() {
     dislikes: 0,
     user_reaction: null,
   });
+  const [activePreviewKey, setActivePreviewKey] = useState("");
 
   const previewRefs = useRef(new Map());
   const modalVideoRef = useRef(null);
@@ -311,7 +312,9 @@ export default function App() {
     activeCategory === "LANDING" || activeCategory === "PROFILE"
       ? []
       : activeCategory === "EMPTY"
-        ? catalogItems
+        ? activeQuery.trim()
+          ? catalogItems
+          : []
         : activeCategory === "Pleylist"
           ? savedItems
           : catalogItems;
@@ -770,6 +773,7 @@ export default function App() {
     previewRefs.current.forEach((video, key) => {
       if (!video || key === exceptKey) return;
       video.pause();
+      video.dataset.ready = video.dataset.ready || "false";
     });
   }
 
@@ -782,6 +786,7 @@ export default function App() {
       if (activePreviewVideoRef.current === video) {
         activePreviewVideoRef.current = null;
       }
+      setActivePreviewKey("");
       return;
     }
 
@@ -796,16 +801,19 @@ export default function App() {
       video.src = status.stream_url;
       video.load();
     }
+    video.dataset.ready = "true";
     video.currentTime = 0;
     video.preload = "metadata";
     try {
       await video.play();
       activePreviewVideoRef.current = video;
+      setActivePreviewKey(String(item.id));
     } catch (error) {
       if (error?.name === "NotAllowedError") {
         video.muted = true;
         await video.play();
         activePreviewVideoRef.current = video;
+        setActivePreviewKey(String(item.id));
       } else {
         showTopToast("Video ochilmadi. Uni botga yuborib ko'ring.");
       }
@@ -1434,15 +1442,18 @@ export default function App() {
                             loop
                             playsInline
                             preload="none"
+                            poster={posterUrl || undefined}
                             onPause={() => {
                               if (activePreviewVideoRef.current === previewRefs.current.get(String(item.id))) {
                                 activePreviewVideoRef.current = null;
                               }
+                              setActivePreviewKey("");
                             }}
                             onEnded={() => {
                               if (activePreviewVideoRef.current === previewRefs.current.get(String(item.id))) {
                                 activePreviewVideoRef.current = null;
                               }
+                              setActivePreviewKey("");
                             }}
                             onError={async () => {
                               const refreshedStatus = await fetchVideoStatus(item, { force: true });
@@ -1450,9 +1461,11 @@ export default function App() {
                                 const video = previewRefs.current.get(String(item.id));
                                 if (video) {
                                   video.removeAttribute("src");
+                                  video.dataset.ready = "false";
                                   video.load();
                                 }
                               }
+                              setActivePreviewKey("");
                             }}
                           ></video>
                         ) : null}
@@ -1465,10 +1478,7 @@ export default function App() {
                               handleToggleVideo(item);
                             }}
                             style={{
-                              display:
-                                activePreviewVideoRef.current === previewRefs.current.get(String(item.id))
-                                  ? "none"
-                                  : "flex",
+                              display: activePreviewKey === String(item.id) ? "none" : "flex",
                             }}
                           >
                             ▶
