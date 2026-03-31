@@ -45,6 +45,7 @@ load_dotenv(BASE_DIR / ".env")
 load_dotenv(Path.cwd() / ".env")
 DEFAULT_DATA_DIR = BASE_DIR / "data"
 DEFAULT_SEED_DIR = BASE_DIR / "seed"
+LEGACY_DATA_DIR = BASE_DIR
 DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
 
 
@@ -81,17 +82,39 @@ DATA_FILES = (
 )
 
 
+def bootstrap_source_candidates(filename: str) -> list[Path]:
+    candidates = [
+        DEFAULT_DATA_DIR / filename,
+        LEGACY_DATA_DIR / filename,
+    ]
+
+    if filename == "videos.json":
+        candidates.append(seed_file(filename))
+
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        unique.append(candidate)
+    return unique
+
+
 def ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if DATA_DIR == BASE_DIR:
+    if DATA_DIR in {BASE_DIR, DEFAULT_DATA_DIR}:
         return
 
     for filename in DATA_FILES:
-        source = BASE_DIR / filename
         target = DATA_DIR / filename
-        if target.exists() or not source.exists():
+        if target.exists():
             continue
-        shutil.copy2(source, target)
+        for source in bootstrap_source_candidates(filename):
+            if not source.exists():
+                continue
+            shutil.copy2(source, target)
+            break
 
 
 def data_file(filename: str) -> Path:

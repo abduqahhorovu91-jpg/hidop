@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = BASE_DIR / "data"
+LEGACY_DATA_DIR = BASE_DIR
 DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
 DATA_FILES = ("videos.json", "saved_videos.json")
 
@@ -44,17 +45,36 @@ def resolve_data_dir(raw_value: str) -> Path:
 DATA_DIR = resolve_data_dir(DATA_DIR_ENV)
 
 
+def bootstrap_source_candidates(filename: str) -> list[Path]:
+    candidates = [
+        DEFAULT_DATA_DIR / filename,
+        LEGACY_DATA_DIR / filename,
+    ]
+
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        unique.append(candidate)
+    return unique
+
+
 def ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if DATA_DIR == BASE_DIR:
+    if DATA_DIR in {BASE_DIR, DEFAULT_DATA_DIR}:
         return
 
     for filename in DATA_FILES:
-        source = BASE_DIR / filename
         target = DATA_DIR / filename
-        if target.exists() or not source.exists():
+        if target.exists():
             continue
-        shutil.copy2(source, target)
+        for source in bootstrap_source_candidates(filename):
+            if not source.exists():
+                continue
+            shutil.copy2(source, target)
+            break
 
 
 def data_file(filename: str) -> Path:
