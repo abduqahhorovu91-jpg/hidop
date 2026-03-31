@@ -355,7 +355,7 @@ body[data-theme="summer"] .profile-showcase__menu {
   z-index: 70;
   width: min(calc(100vw - 24px), 430px);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
@@ -384,20 +384,26 @@ body[data-theme="summer"] .profile-showcase__menu {
 .bottom-dock__item {
   position: relative;
   height: 56px;
+  min-width: 0;
+  padding: 0;
   border: 0;
   border-radius: 18px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: var(--text);
   cursor: pointer;
+  overflow: visible;
   transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
 .bottom-dock__count {
   position: absolute;
-  top: -7px;
-  right: 10px;
+  top: 4px;
+  left: calc(50% + 12px);
+  right: auto;
+  transform: translateX(-50%);
   min-width: 22px;
   height: 22px;
   padding: 0 6px;
@@ -458,9 +464,9 @@ body[data-theme="summer"] .profile-showcase__menu {
 }
 
 .bottom-dock__item--profile {
-  min-width: 96px;
-  justify-self: end;
-  padding-inline: 14px;
+  width: 100%;
+  justify-self: stretch;
+  padding-inline: 0;
 }
 
 .bottom-dock__item--empty {
@@ -469,13 +475,11 @@ body[data-theme="summer"] .profile-showcase__menu {
 
 .holo-panel {
   margin-bottom: 22px;
-  padding: 28px 26px 20px;
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top right, rgba(0, 160, 255, 0.14), transparent 28%),
-    linear-gradient(180deg, rgba(6, 14, 24, 0.92), rgba(5, 10, 18, 0.88));
-  border: 1px solid rgba(75, 136, 255, 0.16);
-  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .input-container {
@@ -2278,12 +2282,18 @@ body.search-open .quick-filters {
   background-size: cover;
   filter: saturate(1.02) brightness(0.9) contrast(1.04);
   transform: scale(1.02);
+  z-index: 1;
 }
 
 .thumb video {
   object-fit: cover;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 180ms ease;
+}
+
+.thumb video[data-ready="true"] {
   opacity: 0.98;
-  z-index: 1;
 }
 
 .thumb::after {
@@ -3006,6 +3016,43 @@ body.search-open .quick-filters {
     padding-right: 8px;
   }
 
+  .bottom-dock {
+    width: calc(100vw - 16px);
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    gap: 2px;
+    padding: 8px 6px;
+    border-radius: 24px;
+  }
+
+  .bottom-dock__item {
+    height: 52px;
+    border-radius: 16px;
+  }
+
+  .bottom-dock__item--profile {
+    padding-inline: 0;
+  }
+
+  .bottom-dock__icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .bottom-dock__avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .bottom-dock__count {
+    top: 3px;
+    left: calc(50% + 10px);
+    right: auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+
   .top-toast {
     top: calc(max(16px, env(safe-area-inset-top)) + 94px);
     width: calc(100vw - 16px);
@@ -3227,6 +3274,45 @@ body.search-open .quick-filters {
 }
 
 @media (max-width: 420px) {
+  .bottom-dock {
+    width: calc(100vw - 12px);
+    gap: 0;
+    padding: 7px 4px;
+    border-radius: 22px;
+  }
+
+  .bottom-dock__item {
+    height: 48px;
+    border-radius: 14px;
+  }
+
+  .bottom-dock__item::after {
+    bottom: 4px;
+  }
+
+  .bottom-dock__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .bottom-dock__avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .bottom-dock__item--profile {
+    padding-inline: 0;
+  }
+
+  .bottom-dock__count {
+    top: 2px;
+    left: calc(50% + 8px);
+    right: auto;
+    min-width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+
   .telegram-bar__brand {
     padding: 14px;
     gap: 12px;

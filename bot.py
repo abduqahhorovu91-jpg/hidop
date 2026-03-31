@@ -75,7 +75,6 @@ DATA_FILES = (
     "videos.json",
     "uploaders.json",
     "saved_videos.json",
-    "landing_ad.json",
     "video_reactions.json",
     "user_reactions.json",
     "monthly_reactions.json",
@@ -124,16 +123,6 @@ def db_load_users():
         logging.getLogger(__name__).warning("Error loading users: %s", exc)
         return {}
 
-def db_load_landing_ad():
-    try:
-        if LANDING_AD_FILE.exists():
-            with open(LANDING_AD_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return {}
-    except Exception as exc:
-        logging.getLogger(__name__).warning("Error loading landing ad: %s", exc)
-        return {}
-
 def db_load_video_catalog():
     try:
         sources = [VIDEO_CATALOG_FILE, seed_file("videos.json")]
@@ -165,13 +154,6 @@ def db_save_users(data):
     except Exception as e:
         logger.warning(f"Error saving users: {e}")
 
-def db_save_landing_ad(data):
-    try:
-        with open(LANDING_AD_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.warning(f"Error saving landing ad: {e}")
-
 def db_save_video_catalog(data):
     try:
         with open(VIDEO_CATALOG_FILE, 'w', encoding='utf-8') as f:
@@ -201,8 +183,6 @@ UPLOADERS_FILE = data_file("uploaders.json")
 VIDEO_UPLOADERS: set[int] = set()
 SAVED_VIDEOS_FILE = data_file("saved_videos.json")
 SAVED_VIDEOS: dict[int, list[dict[str, object]]] = {}
-LANDING_AD_FILE = data_file("landing_ad.json")
-LANDING_AD: dict[str, object] = {}
 VIDEO_REACTIONS_FILE = data_file("video_reactions.json")
 VIDEO_REACTIONS: dict[int, dict[str, int]] = {}
 USER_REACTIONS_FILE = data_file("user_reactions.json")
@@ -221,7 +201,6 @@ TELEGRAM_FILE_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 THANKS_TEXT = "Bizdan foydalanganingiz uchun rahmat"
 SHARE_BROADCAST_TEXT = "BIZNI QO'LAB QUVATLASH UCHUN SHARE TUGMASINI BOSING"
 TELEGRAM_BOT_API_DOWNLOAD_LIMIT_BYTES = 20 * 1024 * 1024
-LANDING_AD_STATE_KEY = "landing_ad_state"
 CANONICAL_WEBAPP_URL = "https://hidop.onrender.com"
 LEGACY_WEBAPP_HOSTS = {
     "hide-tv87.onrender.com",
@@ -405,36 +384,6 @@ def save_users() -> None:
         db_save_users({str(user_id): data for user_id, data in USERS.items()})
     except Exception as exc:
         logger.warning("users baza ga yozilmadi: %s", exc)
-
-
-def load_landing_ad() -> None:
-    LANDING_AD.clear()
-    raw_payload = db_load_landing_ad()
-    if not isinstance(raw_payload, dict):
-        return
-
-    video_file_id = str(raw_payload.get("video_file_id", "") or "").strip()
-    click_url = str(raw_payload.get("click_url", "") or "").strip()
-    comment = str(raw_payload.get("comment", "") or "").strip()
-    updated_at = str(raw_payload.get("updated_at", "") or "").strip()
-    if video_file_id:
-        LANDING_AD["video_file_id"] = video_file_id
-    if click_url:
-        LANDING_AD["click_url"] = click_url
-    if comment:
-        LANDING_AD["comment"] = comment
-    if updated_at:
-        LANDING_AD["updated_at"] = updated_at
-
-
-def save_landing_ad() -> None:
-    payload = {
-        "video_file_id": str(LANDING_AD.get("video_file_id", "") or "").strip(),
-        "click_url": str(LANDING_AD.get("click_url", "") or "").strip(),
-        "comment": str(LANDING_AD.get("comment", "") or "").strip(),
-        "updated_at": str(LANDING_AD.get("updated_at", "") or "").strip(),
-    }
-    db_save_landing_ad(payload)
 
 
 def remember_referral(referrer_id: int, new_user_id: int) -> None:
@@ -1274,33 +1223,6 @@ def get_videos():
         return jsonify({"success": True, "items": serialized_items})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)})
-
-
-@web_app.route("/api/landing-ad")
-def get_landing_ad():
-    video_file_id = str(LANDING_AD.get("video_file_id", "") or "").strip()
-    click_url = str(LANDING_AD.get("click_url", "") or "").strip()
-    comment = str(LANDING_AD.get("comment", "") or "").strip()
-    if not video_file_id:
-        return jsonify({"ok": True, "item": None})
-
-    try:
-        video_url = asyncio.run(resolve_telegram_file_url(video_file_id))
-    except Exception as exc:
-        logger.warning("Landing reklama videosi olinmadi: %s", exc)
-        return jsonify({"ok": False, "error": "Reklama videosi olinmadi", "item": None}), 500
-
-    return jsonify(
-        {
-            "ok": True,
-            "item": {
-                "video_url": video_url,
-                "click_url": click_url,
-                "comment": comment,
-                "updated_at": str(LANDING_AD.get("updated_at", "") or "").strip(),
-            },
-        }
-    )
 
 
 @web_app.route("/api/search")
@@ -3321,8 +3243,6 @@ async def handle_user_non_text(update: Update, context: ContextTypes.DEFAULT_TYP
     schedule_pending_general_broadcasts_for_user(update, context)
     if await handle_admin_general_broadcast_content(update, context):
         return
-    if await handle_admin_landing_ad_video(update, context):
-        return
     if await handle_upload_video_photo(update, context):
         return
     if await handle_upload_video_trailer(update, context):
@@ -5294,119 +5214,6 @@ async def handle_admin_users_json_export(
     return True
 
 
-async def reklama_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not update.message or not update.effective_user:
-        return
-    if not is_bot_admin(update.effective_user.id):
-        return
-
-    context.user_data[LANDING_AD_STATE_KEY] = {"stage": "await_video"}
-    await update.message.reply_text(
-        "Reklama uchun videoni yuboring.\n"
-        "Video qabul qilingach, keyingi xabarda link so'raladi."
-    )
-
-
-async def handle_admin_landing_ad_video(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> bool:
-    message = update.message
-    if not message or not update.effective_user:
-        return False
-    if not is_bot_admin(update.effective_user.id):
-        return False
-
-    state = context.user_data.get(LANDING_AD_STATE_KEY)
-    if not isinstance(state, dict) or state.get("stage") != "await_video":
-        return False
-
-    video_file_id = ""
-    if message.video:
-        video_file_id = str(message.video.file_id or "").strip()
-
-    if not video_file_id:
-        await message.reply_text("Avval reklama uchun video yuboring.")
-        return True
-
-    state["video_file_id"] = video_file_id
-    state["stage"] = "await_link"
-    await message.reply_text(
-        "Endi shu video bosilganda ochiladigan linkni yuboring.\n"
-        "Masalan: https://example.com"
-    )
-    return True
-
-
-async def handle_admin_landing_ad_link(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> bool:
-    message = update.message
-    if not message or not message.text or not update.effective_user:
-        return False
-    if not is_bot_admin(update.effective_user.id):
-        return False
-
-    state = context.user_data.get(LANDING_AD_STATE_KEY)
-    if not isinstance(state, dict) or state.get("stage") != "await_link":
-        return False
-
-    click_url = str(message.text or "").strip()
-    parsed = urlparse(click_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        await message.reply_text("Link noto'g'ri. To'liq `https://...` ko'rinishida yuboring.", parse_mode=None)
-        return True
-
-    video_file_id = str(state.get("video_file_id", "") or "").strip()
-    if not video_file_id:
-        context.user_data.pop(LANDING_AD_STATE_KEY, None)
-        await message.reply_text("Video topilmadi. /reklama ni qaytadan yuboring.")
-        return True
-
-    state["click_url"] = click_url
-    state["stage"] = "await_comment"
-    await message.reply_text(
-        "Endi reklama uchun comment yuboring.\n"
-        "Bu matn landingdagi reklama yozuvi o'rnida chiqadi."
-    )
-    return True
-
-
-async def handle_admin_landing_ad_comment(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> bool:
-    message = update.message
-    if not message or not message.text or not update.effective_user:
-        return False
-    if not is_bot_admin(update.effective_user.id):
-        return False
-
-    state = context.user_data.get(LANDING_AD_STATE_KEY)
-    if not isinstance(state, dict) or state.get("stage") != "await_comment":
-        return False
-
-    video_file_id = str(state.get("video_file_id", "") or "").strip()
-    click_url = str(state.get("click_url", "") or "").strip()
-    comment = str(message.text or "").strip()
-
-    if not video_file_id or not click_url:
-        context.user_data.pop(LANDING_AD_STATE_KEY, None)
-        await message.reply_text("Ma'lumot topilmadi. /reklama ni qaytadan yuboring.")
-        return True
-
-    if not comment:
-        await message.reply_text("Comment bo'sh bo'lmasin. Qayta yuboring.")
-        return True
-
-    LANDING_AD["video_file_id"] = video_file_id
-    LANDING_AD["click_url"] = click_url
-    LANDING_AD["comment"] = comment
-    LANDING_AD["updated_at"] = datetime.now().isoformat(timespec="seconds")
-    save_landing_ad()
-    context.user_data.pop(LANDING_AD_STATE_KEY, None)
-    await message.reply_text("Reklama saqlandi. Video, link va comment 1-bo'limda chiqadi.")
-    return True
-
-
 async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
@@ -5426,10 +5233,6 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if await handle_admin_video_uploaders_report(update, context):
         return
     if await handle_admin_users_json_export(update, context):
-        return
-    if await handle_admin_landing_ad_link(update, context):
-        return
-    if await handle_admin_landing_ad_comment(update, context):
         return
     if await handle_upload_video_name(update, context):
         return
@@ -5527,7 +5330,6 @@ def bootstrap_runtime_state() -> None:
     load_users()
     load_video_catalog()
     load_saved_videos()
-    load_landing_ad()
     load_video_reactions()
     load_monthly_reactions()
     load_video_uploaders()
@@ -5569,7 +5371,6 @@ def main() -> None:
     app.add_handler(CommandHandler("videos", videos_command))
     app.add_handler(CommandHandler("pleylist", handle_saved_videos_request))
     app.add_handler(CommandHandler("ombor", handle_saved_videos_request))
-    app.add_handler(CommandHandler("reklama", reklama_command))
     app.add_handler(CallbackQueryHandler(on_thanks_click, pattern=r"^thanks_"))
     app.add_handler(CallbackQueryHandler(on_start_using_bot_click, pattern=r"^start_using_bot$"))
     app.add_handler(CallbackQueryHandler(on_share_broadcast_click, pattern=r"^share_broadcast$"))

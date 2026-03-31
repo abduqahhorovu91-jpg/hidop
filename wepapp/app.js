@@ -22,7 +22,6 @@ let currentModalKeydownHandler = null;
 let telegramProfilePhotoUrl = "";
 let sharedProfileUsers = [];
 let isProfileDetailsEditing = false;
-let landingAdData = null;
 let topToastTimerId = null;
 const pendingSendVideoIds = new Set();
 
@@ -115,14 +114,6 @@ const themeOptionEls = Array.from(document.querySelectorAll(".theme-panel__optio
 const emptyStateEl = document.getElementById("emptyState");
 const sectionHeadingEl = document.getElementById("sectionHeading");
 const landingPanelEl = document.getElementById("landingPanel");
-const landingAdFeatureEl = landingPanelEl?.querySelector(".landing-panel__feature") || null;
-const landingAdMediaEl = document.getElementById("landingAdMedia");
-const landingAdVideoEl = document.getElementById("landingAdVideo");
-const landingAdBadgeEl = document.getElementById("landingAdBadge");
-const landingAdPlayEl = document.getElementById("landingAdPlay");
-const landingAdEyebrowEl = document.getElementById("landingAdEyebrow");
-const landingAdTitleEl = document.getElementById("landingAdTitle");
-const landingAdTextEl = document.getElementById("landingAdText");
 const holoPanelEl = document.getElementById("holoPanel");
 const holoInputEl = document.querySelector(".holo-input");
 const holoResultsCountEl = document.getElementById("holoResultsCount");
@@ -319,77 +310,6 @@ function getTelegramContactLabel() {
 function getTelegramUserPhotoUrl() {
   const photoUrl = telegramProfilePhotoUrl || tg?.initDataUnsafe?.user?.photo_url || "";
   return String(photoUrl).trim();
-}
-
-function openExternalLink(url) {
-  const href = String(url || "").trim();
-  if (!href) return;
-  if (tg?.openLink) {
-    tg.openLink(href);
-    return;
-  }
-  window.open(href, "_blank", "noopener");
-}
-
-function renderLandingAd() {
-  if (!landingPanelEl || !landingAdMediaEl || !landingAdVideoEl || !landingAdFeatureEl) {
-    return;
-  }
-
-  const hasAd = Boolean(landingAdData?.video_url);
-  landingAdFeatureEl.classList.toggle("is-hidden", !hasAd);
-  landingAdMediaEl.classList.toggle("has-video", hasAd);
-  landingAdFeatureEl?.classList.toggle("is-clickable", Boolean(landingAdData?.click_url));
-
-  if (landingAdBadgeEl) {
-    landingAdBadgeEl.textContent = hasAd ? "Reklama" : "Preview";
-  }
-  if (landingAdEyebrowEl) {
-    landingAdEyebrowEl.textContent = hasAd ? "Hamkorlik" : "Tavsiya";
-  }
-  if (landingAdTitleEl) {
-    landingAdTitleEl.textContent = hasAd
-      ? "Admin qo'shgan reklama videosi hozir shu yerda avtomatik yuradi."
-      : "Bitta preview blok orqali landingni jonliroq ko'rinishda qoldirdik.";
-  }
-  if (landingAdTextEl) {
-    landingAdTextEl.textContent = hasAd
-      ? String(landingAdData?.comment || "").trim()
-      : "Pastdagi 2-bo'limga o'tsangiz barcha videolarni ko'rishingiz mumkin.";
-  }
-
-  if (hasAd) {
-    landingAdVideoEl.src = normalizeApiUrl(landingAdData.video_url);
-    landingAdVideoEl.classList.remove("is-hidden");
-    landingAdPlayEl?.classList.add("is-hidden");
-    const playPromise = landingAdVideoEl.play();
-    if (playPromise?.catch) {
-      playPromise.catch(() => {});
-    }
-  } else {
-    landingAdVideoEl.pause();
-    landingAdVideoEl.removeAttribute("src");
-    landingAdVideoEl.load();
-    landingAdVideoEl.classList.add("is-hidden");
-    landingAdPlayEl?.classList.remove("is-hidden");
-  }
-}
-
-async function loadLandingAd() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/landing-ad`, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (response.ok && payload?.ok && payload?.item?.video_url) {
-      landingAdData = payload.item;
-    } else {
-      landingAdData = null;
-    }
-  } catch (error) {
-    console.error("Landing reklama yuklanmadi:", error);
-    landingAdData = null;
-  }
-
-  renderLandingAd();
 }
 
 function getProfileDetailsLookupKey() {
@@ -970,7 +890,7 @@ async function loadItems() {
       ageLabel: item.ageLabel || "Kutubxonada",
       palette: item.palette || detectPalette(item),
       preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
-      poster_url: normalizeApiUrl(item.poster_url || ""),
+      poster_url: normalizeApiUrl(item.poster_url || item.preview_url || ""),
       trailer_url: normalizeApiUrl(item.trailer_url || ""),
       added_at: item.added_at || "",
       web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
@@ -1008,7 +928,7 @@ async function loadSavedItems() {
     return items.map((item) => ({
       ...item,
       preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
-      poster_url: normalizeApiUrl(item.poster_url || ""),
+      poster_url: normalizeApiUrl(item.poster_url || item.preview_url || ""),
       trailer_url: normalizeApiUrl(item.trailer_url || ""),
       web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
       web_stream_error: item.web_stream_error || "",
@@ -1496,7 +1416,7 @@ function render() {
     const description = escapeHtml(getDisplayDescription(item));
     const canPreviewInCard = Boolean(item.trailer_url) || (item.web_streamable !== false && Boolean(item.preview_url || item.id));
     const previewUrl = normalizeApiUrl(item.trailer_url || item.preview_url || (item.id ? buildVideoFileUrl(item.id) : ""));
-    const posterUrl = normalizeApiUrl(item.poster_url || "");
+    const posterUrl = normalizeApiUrl(item.poster_url || item.preview_url || "");
     const palette = ["night", "instagram", "youtube"].includes(item.palette) ? item.palette : "night";
     const card = document.createElement("article");
     card.className = "card";
@@ -1977,11 +1897,6 @@ profileDetailsLastNameEl?.addEventListener("keydown", (event) => {
   }
 });
 
-landingAdFeatureEl?.addEventListener("click", () => {
-  if (landingAdData?.click_url) {
-    openExternalLink(landingAdData.click_url);
-  }
-});
 themeToggleEl?.addEventListener("click", (event) => {
   event.stopPropagation();
   toggleThemePanel();
@@ -2018,7 +1933,6 @@ async function initializeApp() {
   syncBodyOverlayState();
   await loadTelegramProfilePhoto();
   await loadSharedProfileUsers();
-  await loadLandingAd();
 
   allItems = await loadItems();
   await refreshSavedItems();
