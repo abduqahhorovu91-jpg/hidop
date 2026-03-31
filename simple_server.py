@@ -6,6 +6,7 @@ import http.server
 import socketserver
 import json
 import os
+import shutil
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
@@ -21,9 +22,45 @@ def load_env():
 
 load_env()
 
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA_DIR = BASE_DIR / "data"
+DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
+DATA_FILES = ("videos.json", "saved_videos.json")
+
+
+def resolve_data_dir(raw_value: str) -> Path:
+    if not raw_value:
+        return DEFAULT_DATA_DIR
+    candidate = Path(raw_value).expanduser()
+    if not candidate.is_absolute():
+        candidate = BASE_DIR / candidate
+    return candidate
+
+
+DATA_DIR = resolve_data_dir(DATA_DIR_ENV)
+
+
+def ensure_data_dir() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if DATA_DIR == BASE_DIR:
+        return
+
+    for filename in DATA_FILES:
+        source = BASE_DIR / filename
+        target = DATA_DIR / filename
+        if target.exists() or not source.exists():
+            continue
+        shutil.copy2(source, target)
+
+
+def data_file(filename: str) -> Path:
+    ensure_data_dir()
+    return DATA_DIR / filename
+
+
 # Database file paths
-VIDEOS_FILE = Path("videos.json")
-SAVED_VIDEOS_FILE = Path("saved_videos.json")
+VIDEOS_FILE = data_file("videos.json")
+SAVED_VIDEOS_FILE = data_file("saved_videos.json")
 
 # Load video catalog
 def load_video_catalog():

@@ -43,7 +43,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(Path.cwd() / ".env")
-DEFAULT_DATA_DIR = BASE_DIR
+DEFAULT_DATA_DIR = BASE_DIR / "data"
 DATA_DIR_ENV = os.getenv("DATA_DIR", "").strip()
 
 
@@ -764,7 +764,7 @@ def get_saved_videos_for_owner(owner_id: int) -> list[dict[str, object]]:
         payload["saved_id"] = saved_item.get("saved_id", video_id)
         payload["saved_name"] = str(saved_item.get("name", video.get("title", "")))
         payload["saved_at"] = saved_item.get("saved_at")
-        payload["category"] = "Ombor"
+        payload["category"] = "Pleylist"
         payload["ageLabel"] = "Saqlangan"
         payload["palette"] = "instagram"
         items.append(payload)
@@ -1770,11 +1770,6 @@ def create_video_buttons(video_id: int, context: ContextTypes.DEFAULT_TYPE) -> I
         )]
     ])
 
-
-def build_save_success_markup() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("OK", url=WEBAPP_URL)]])
-
-
 async def send_save_success_message(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
@@ -1790,7 +1785,6 @@ async def send_save_success_message(
     await context.bot.send_message(
         chat_id=chat_id,
         text=message_text,
-        reply_markup=build_save_success_markup(),
     )
 
 
@@ -4182,13 +4176,7 @@ async def handle_saved_videos_request(
 
     user_id = update.effective_user.id
     await message.reply_text(
-        f"saqlangan videolar Pleylist 📁 da saqlanayapti\n"
-        f"profilingiz idisi ✅\n"
-        f"IDi `{user_id}`",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Botga kirish", url=SHARE_BOT_URL)]]
-        ),
+        "saqlangan videolar Pleylist 📁 da saqlanayapti",
     )
     return True
 
@@ -5257,6 +5245,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("malumot", malumot_command))
     app.add_handler(CommandHandler("videos", videos_command))
+    app.add_handler(CommandHandler("pleylist", handle_saved_videos_request))
     app.add_handler(CommandHandler("ombor", handle_saved_videos_request))
     app.add_handler(CallbackQueryHandler(on_thanks_click, pattern=r"^thanks_"))
     app.add_handler(CallbackQueryHandler(on_start_using_bot_click, pattern=r"^start_using_bot$"))

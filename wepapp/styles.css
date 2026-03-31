@@ -78,8 +78,8 @@ body.has-overlay {
   overflow: hidden;
 }
 
-body[data-category="ombor"] .hero__signal,
-body[data-category="ombor"] .library-item__id {
+body[data-category="pleylist"] .hero__signal,
+body[data-category="pleylist"] .library-item__id {
   background:
     linear-gradient(135deg, rgba(255, 184, 94, 0.26), rgba(255, 132, 175, 0.18)),
     rgba(15, 20, 30, 0.82);
@@ -95,19 +95,27 @@ body[data-category="ombor"] .library-item__id {
 .top-toast {
   position: fixed;
   left: 50%;
-  top: calc(max(18px, env(safe-area-inset-top)) + 96px);
+  top: calc(max(18px, env(safe-area-inset-top)) + 88px);
   z-index: 80;
-  max-width: calc(100vw - 32px);
-  padding: 12px 18px;
-  border-radius: 999px;
-  background: rgba(12, 20, 30, 0.92);
-  border: 1px solid rgba(119, 241, 207, 0.2);
-  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.28);
+  width: min(calc(100vw - 28px), 460px);
+  padding: 13px 16px;
+  border-radius: 20px;
+  background: rgba(12, 20, 30, 0.96);
+  border: 1px solid rgba(119, 241, 207, 0.14);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
   color: var(--text);
   font-size: 14px;
-  font-weight: 800;
-  transform: translateX(-50%);
+  font-weight: 700;
+  line-height: 1.4;
+  transform: translate(-50%, -10px);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.top-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .telegram-bar {
@@ -152,6 +160,7 @@ body[data-category="ombor"] .library-item__id {
   flex-direction: column;
   gap: 2px;
   flex: 1 1 auto;
+  justify-content: center;
 }
 
 .telegram-bar__eyebrow,
@@ -174,6 +183,36 @@ body[data-category="ombor"] .library-item__id {
   font-size: 22px;
   font-weight: 700;
   line-height: 1.05;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.telegram-bar__search-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.05;
+  outline: none;
+}
+
+.telegram-bar__search-input::placeholder {
+  color: rgba(205, 219, 233, 0.52);
+}
+
+.telegram-bar__content.is-searching strong {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.telegram-bar__content.is-searching .telegram-bar__search-input {
+  display: block !important;
 }
 
 .telegram-bar__status {
@@ -345,8 +384,8 @@ body[data-category="ombor"] .library-item__id {
 }
 
 .profile-badge {
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -354,7 +393,7 @@ body[data-category="ombor"] .library-item__id {
     linear-gradient(135deg, #f5f7fb 0%, #c5d7ff 46%, #78eacb 100%);
   color: #09111d;
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 700;
   overflow: hidden;
 }
@@ -374,50 +413,6 @@ body[data-category="ombor"] .library-item__id {
   border-radius: inherit;
   object-fit: cover;
   object-position: center;
-}
-
-.search-row {
-  position: fixed;
-  top: calc(max(18px, env(safe-area-inset-top)) + 98px);
-  left: 50%;
-  z-index: 45;
-  width: min(calc(100vw - 36px), 1240px);
-  transform: translateX(-50%);
-  transition:
-    transform 260ms ease,
-    opacity 260ms ease,
-    filter 260ms ease,
-    visibility 260ms ease;
-}
-
-.search-row input {
-  width: 100%;
-  padding: 18px 20px;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(10, 16, 24, 0.92);
-  color: var(--text);
-  font: inherit;
-  font-size: 15px;
-  outline: none;
-  backdrop-filter: blur(24px);
-  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.3);
-  transition: border-color 180ms ease, box-shadow 180ms ease;
-}
-
-.search-row input:focus {
-  border-color: rgba(119, 241, 207, 0.34);
-  box-shadow:
-    0 24px 55px rgba(0, 0, 0, 0.34),
-    0 0 0 4px rgba(119, 241, 207, 0.08);
-}
-
-.search-row.is-hidden {
-  visibility: hidden;
-  opacity: 0;
-  transform: translateX(-50%) translateY(-16px);
-  filter: blur(8px);
-  pointer-events: none;
 }
 
 body.search-open .promo-ticker,
@@ -1410,45 +1405,47 @@ body.search-open .section-heading {
 
 .save-success-modal {
   position: fixed;
-  inset: 0;
+  top: calc(max(16px, env(safe-area-inset-top)) + 78px);
+  left: 50%;
   z-index: 90;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(3, 10, 6, 0.38);
-  backdrop-filter: blur(8px);
+  width: min(100% - 24px, 520px);
+  padding: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .save-success-card {
-  width: min(100%, 560px);
-  padding: 34px 44px 22px;
-  border-radius: 32px;
-  background: linear-gradient(180deg, #0d2414 0%, #0a1b10 100%);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+  width: 100%;
+  padding: 22px 22px 18px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(11, 32, 17, 0.98) 0%, rgba(8, 23, 13, 0.98) 100%);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
   text-align: center;
-  border: 1px solid rgba(130, 219, 126, 0.14);
+  border: 1px solid rgba(130, 219, 126, 0.16);
+  pointer-events: auto;
+  animation: save-toast-in 220ms ease-out;
 }
 
 .save-success-card__title {
   margin: 0;
   color: #f5f8f4;
-  font-size: clamp(26px, 4vw, 42px);
-  font-weight: 500;
+  font-size: clamp(20px, 2.8vw, 28px);
+  font-weight: 700;
 }
 
 .save-success-card__status {
-  margin: 26px 0 0;
+  margin: 12px 0 0;
   color: #cdd9d1;
-  font-size: clamp(24px, 4vw, 36px);
-  font-weight: 500;
-  line-height: 1.35;
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .save-success-card__description {
-  margin: 28px 0 0;
+  margin: 12px 0 0;
   color: #b8c6bc;
-  font-size: clamp(18px, 3vw, 26px);
-  line-height: 1.45;
+  font-size: clamp(14px, 2vw, 17px);
+  line-height: 1.4;
 }
 
 .save-success-card__description.is-hidden {
@@ -1457,15 +1454,15 @@ body.search-open .section-heading {
 
 .save-success-card__button {
   width: 100%;
-  margin-top: 34px;
-  min-height: 80px;
+  margin-top: 16px;
+  min-height: 56px;
   border: 0;
-  border-radius: 24px;
+  border-radius: 18px;
   background: #28c323;
   color: #f5fff3;
   font: inherit;
-  font-size: clamp(24px, 3vw, 34px);
-  font-weight: 500;
+  font-size: clamp(18px, 2.4vw, 22px);
+  font-weight: 700;
   cursor: pointer;
   transition: transform 180ms ease, filter 180ms ease;
 }
@@ -1483,6 +1480,18 @@ body.search-open .section-heading {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes save-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1587,7 +1596,9 @@ body.search-open .section-heading {
   }
 
   .top-toast {
-    top: calc(max(16px, env(safe-area-inset-top)) + 142px);
+    top: calc(max(16px, env(safe-area-inset-top)) + 94px);
+    width: calc(100vw - 16px);
+    border-radius: 18px;
   }
 
   .telegram-bar__brand {
@@ -1611,9 +1622,10 @@ body.search-open .section-heading {
     border-radius: 16px;
   }
 
-  .search-row {
-    top: calc(max(16px, env(safe-area-inset-top)) + 150px);
-    width: calc(100vw - 24px);
+  .profile-badge {
+    width: 58px;
+    height: 58px;
+    font-size: 18px;
   }
 
   .promo-ticker {
@@ -1768,13 +1780,13 @@ body.search-open .section-heading {
   }
 
   .save-success-card {
-    padding: 28px 22px 18px;
-    border-radius: 28px;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
   }
 
   .save-success-card__button {
-    min-height: 68px;
-    border-radius: 20px;
+    min-height: 52px;
+    border-radius: 16px;
   }
 
   .video-modal__header,

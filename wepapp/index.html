@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=20260330-0032" />
+  <link rel="stylesheet" href="./styles.css?v=20260331-1536" />
 </head>
 <body>
   <div class="app-shell">
@@ -17,7 +17,14 @@
       <div class="telegram-bar__brand">
         <div class="telegram-bar__logo">H</div>
         <div class="telegram-bar__content">
-          <strong>Hidop_bot</strong>
+          <strong id="brandTitle">Hidop_bot</strong>
+          <input
+            class="telegram-bar__search-input is-hidden"
+            id="searchInput"
+            type="search"
+            placeholder="Video nomi, ID yoki bo'lim bo'yicha qidiring..."
+            autocomplete="off"
+          />
         </div>
         <div class="telegram-bar__actions">
           <button class="telegram-bar__icon search-toggle" id="searchToggle" type="button" aria-label="Qidiruvni ochish" aria-expanded="false">
@@ -44,10 +51,6 @@
       <div class="filters filters--inline" id="filters"></div>
     </div>
 
-    <div class="search-row is-hidden" id="searchRow">
-      <input id="searchInput" type="search" placeholder="Video nomi, ID yoki bo'lim bo'yicha qidiring..." autocomplete="off" />
-    </div>
-
     <div class="profile-modal is-hidden" id="profileModal" aria-hidden="true">
       <div class="profile-modal__backdrop" id="profileModalBackdrop"></div>
       <div class="profile-card" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
@@ -55,7 +58,7 @@
         <div class="profile-card__badge">U</div>
         <p class="profile-card__eyebrow">Profil</p>
         <h2 id="profileModalTitle">HIDOP BOT User</h2>
-        <p class="profile-card__description">Ombor, like va yuborish funksiyalarini profil ID bilan ulang.</p>
+        <p class="profile-card__description">Pleylist, like va yuborish funksiyalarini profil ID bilan ulang.</p>
         <label class="profile-card__field" for="profileInput">
           <input id="profileInput" type="text" placeholder="ID ingizni kiriting" inputmode="numeric" />
         </label>
@@ -91,6 +94,6 @@
   </div>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="./app.js?v=20260330-0032"></script>
+  <script src="./app.js?v=20260331-1536"></script>
 </body>
 </html>

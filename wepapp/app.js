@@ -4,7 +4,7 @@ const API_BASE_URL = IS_LOCAL_HOST
   ? `http://127.0.0.1:8000`
   : ""; // Empty string means same origin (current domain)
 const TARGET_USER_STORAGE_KEY = "hidop_target_user_id";
-const categoryOrder = ["HOME", "Ombor"];
+const categoryOrder = ["HOME", "Pleylist"];
 let allItems = [];
 let activeCategory = "HOME";
 let activeQuery = "";
@@ -18,6 +18,7 @@ const videoStatusCache = new Map();
 let activePreviewVideo = null;
 let currentModalKeydownHandler = null;
 let telegramProfilePhotoUrl = "";
+let topToastTimerId = null;
 
 // Error handling for missing elements
 window.addEventListener('error', function(e) {
@@ -108,8 +109,8 @@ const libraryTitleEl = document.getElementById("libraryTitle");
 const libraryUserInfoEl = document.getElementById("libraryUserInfo");
 const currentUserIdEl = document.getElementById("currentUserId");
 const changeUserBtnEl = document.getElementById("changeUserBtn");
+const brandTitleEl = document.getElementById("brandTitle");
 const searchInputEl = document.getElementById("searchInput");
-const searchRowEl = document.getElementById("searchRow");
 const searchToggleEl = document.getElementById("searchToggle");
 const emptyStateEl = document.getElementById("emptyState");
 const profileModalEl = document.getElementById("profileModal");
@@ -118,6 +119,7 @@ const profileModalCloseEl = document.getElementById("profileModalClose");
 const profileButtonEl = document.querySelector(".telegram-bar__profile");
 const profileInputEl = document.getElementById("profileInput");
 const profileSubmitEl = document.getElementById("profileSubmit");
+const topToastEl = document.getElementById("topToast");
 const saveSuccessModalEl = document.getElementById("saveSuccessModal");
 const saveSuccessStatusEl = document.getElementById("saveSuccessStatus");
 const saveSuccessDescriptionEl = document.getElementById("saveSuccessDescription");
@@ -332,31 +334,36 @@ async function loadTelegramProfilePhoto() {
 }
 
 function getVisibleSourceItems() {
-  return activeCategory === "Ombor" ? savedItems : allItems;
+  return activeCategory === "Pleylist" ? savedItems : allItems;
 }
 
 function getLibrarySourceItems() {
-  return activeCategory === "Ombor" ? savedItems : catalogItems;
+  return activeCategory === "Pleylist" ? savedItems : catalogItems;
 }
 
 function getFilteredItems(items = getVisibleSourceItems()) {
   return items.filter((item) => {
-    const categoryOk = activeCategory === "HOME" || item.category === activeCategory;
+    const itemCategory = String(item?.category || "").trim();
+    const isPlaylistItem = itemCategory === "Pleylist" || itemCategory === "Ombor";
+    const categoryOk = activeCategory === "HOME"
+      || activeCategory === "Pleylist"
+      || itemCategory === activeCategory
+      || (activeCategory === "Pleylist" && isPlaylistItem);
     return categoryOk && matchesSearch(item);
   });
 }
 
 function syncBodyOverlayState() {
   const profileOpen = Boolean(profileModalEl && !profileModalEl.classList.contains("is-hidden"));
-  const saveSuccessOpen = Boolean(saveSuccessModalEl && !saveSuccessModalEl.classList.contains("is-hidden"));
-  document.body.classList.toggle("has-overlay", profileOpen || Boolean(currentModal) || saveSuccessOpen);
+  document.body.classList.toggle("has-overlay", profileOpen || Boolean(currentModal));
 }
 
 function syncSearchState() {
-  if (!searchRowEl || !searchToggleEl) return;
-  const isOpen = !searchRowEl.classList.contains("is-hidden");
+  if (!searchToggleEl || !searchInputEl) return;
+  const isOpen = !searchInputEl.classList.contains("is-hidden");
   searchToggleEl.setAttribute("aria-expanded", String(isOpen));
   document.body.classList.toggle("search-open", isOpen);
+  brandTitleEl?.parentElement?.classList.toggle("is-searching", isOpen);
 }
 
 function rerenderPreservingScroll(callback) {
@@ -384,23 +391,23 @@ function updateDashboard(visibleItems = getFilteredItems()) {
   if (filterSummaryEl) {
     filterSummaryEl.textContent = activeQuery
       ? `Qidiruv: ${activeQuery}`
-      : activeCategory === "Ombor"
-        ? "Shaxsiy ombor"
+      : activeCategory === "Pleylist"
+        ? "Shaxsiy pleylist"
         : "Asosiy katalog";
   }
   if (heroDescriptionEl) {
     heroDescriptionEl.textContent = activeQuery
       ? `"${activeQuery}" bo'yicha topilgan videolar saralanmoqda.`
-      : activeCategory === "Ombor"
+      : activeCategory === "Pleylist"
         ? (selectedTargetUserId
           ? "Saqlangan videolar, like va yuborish oqimi shu yerda jamlandi."
-          : "Omborni ko'rish uchun profilingizni ulang.")
+          : "Pleylistni ko'rish uchun profilingizni ulang.")
         : "Katalogdagi videolarni preview qiling, saqlang va botga yuboring.";
   }
   if (sectionTitleEl) {
     sectionTitleEl.textContent = activeQuery
       ? "Qidiruv natijalari"
-      : activeCategory === "Ombor"
+      : activeCategory === "Pleylist"
         ? "Saqlangan videolar"
         : "So'nggi videolar";
   }
@@ -412,8 +419,8 @@ function updateDashboard(visibleItems = getFilteredItems()) {
   if (emptyStateEl) {
     emptyStateEl.textContent = activeQuery
       ? "Qidiruv bo'yicha hech narsa topilmadi."
-      : activeCategory === "Ombor"
-        ? "Omborda hali video yo'q."
+      : activeCategory === "Pleylist"
+        ? "Pleylistda hali video yo'q."
         : "Katalogda hozircha video topilmadi.";
   }
   document.body.dataset.category = activeCategory.toLowerCase();
@@ -568,14 +575,15 @@ function detectCategory(item) {
     haystack.includes("instagram") ||
     haystack.includes("youtube") ||
     haystack.includes("youtu") ||
-    haystack.includes("ombor")
-  ) return "Ombor";
+    haystack.includes("ombor") ||
+    haystack.includes("pleylist")
+  ) return "Pleylist";
   return "HOME";
 }
 
 function detectPalette(item) {
   switch (detectCategory(item)) {
-    case "Ombor":
+    case "Pleylist":
       return "instagram";
     default:
       return "night";
@@ -680,7 +688,7 @@ function buildFilters(items) {
   const orderedCategories = categoryOrder;
   const counts = {
     HOME: catalogItems.length,
-    Ombor: savedItems.length,
+    Pleylist: savedItems.length,
   };
 
   filtersEl.innerHTML = "";
@@ -689,11 +697,11 @@ function buildFilters(items) {
     button.className = "filter-chip";
     button.type = "button";
     button.classList.toggle("is-active", category === activeCategory);
-    button.classList.toggle("is-locked", category === "Ombor" && !selectedTargetUserId);
+    button.classList.toggle("is-locked", category === "Pleylist" && !selectedTargetUserId);
     button.setAttribute("aria-pressed", String(category === activeCategory));
     button.innerHTML = `<span>${category}</span><strong>${counts[category] || 0}</strong>`;
     button.addEventListener("click", () => {
-      if (category === "Ombor" && !selectedTargetUserId) {
+      if (category === "Pleylist" && !selectedTargetUserId) {
         openProfileModal();
         profileInputEl?.focus();
         return;
@@ -743,7 +751,7 @@ function startCatalogAutoRefresh() {
 }
 
 function getPlatformColor(category) {
-  if (category === "Ombor") return "#ffba56";
+  if (category === "Pleylist") return "#ffba56";
   return "#77f1cf";
 }
 
@@ -860,7 +868,7 @@ function deleteSavedVideo(item, triggerElement = null) {
         return;
       }
       removeSavedVideoFromUi(item.id, triggerElement);
-      showTopToast("ombordan olib tashlandi ✅");
+      showTopToast("pleylistdan olib tashlandi ✅");
     })
     .catch(() => {
       window.alert("Video o'chirishda xatolik bo'ldi.");
@@ -901,11 +909,11 @@ async function saveVideoToProfile(item) {
       render();
       renderLibrary();
     });
-    openSaveRedirectModal({
-      title: result?.already_saved ? "Allaqachon saqlangan!" : "Saqlandi!",
-      description: "Playlistingizni /playlist orqali ko'ring.",
-      buttonText: "OK",
-    });
+    showTopToast(
+      result?.already_saved
+        ? "Allaqachon saqlangan. Playlistingizni /playlist orqali ko'ring."
+        : "Saqlandi. Playlistingizni /playlist orqali ko'ring.",
+    );
     return true;
   } catch {
     window.alert("Video saqlashda xatolik bo'ldi.");
@@ -1149,8 +1157,8 @@ function renderLibrary() {
   const sourceItems = getLibrarySourceItems();
   const orderedCatalog = sortBySearchRelevance(getFilteredItems(sourceItems));
 
-  if (activeCategory === "Ombor") {
-    libraryTitleEl.textContent = "Shaxsiy ombor";
+  if (activeCategory === "Pleylist") {
+    libraryTitleEl.textContent = "Shaxsiy pleylist";
     if (selectedTargetUserId && currentUserIdEl) {
       libraryUserInfoEl.style.display = "flex";
       currentUserIdEl.textContent = `ID ${selectedTargetUserId}`;
@@ -1165,8 +1173,8 @@ function renderLibrary() {
   libraryListEl.innerHTML = "";
   libraryCountEl.textContent = `${orderedCatalog.length} ta`;
   libraryEmptyEl.classList.toggle("is-hidden", orderedCatalog.length > 0);
-  libraryEmptyEl.textContent = activeCategory === "Ombor"
-    ? "Omborda hali video yo'q."
+  libraryEmptyEl.textContent = activeCategory === "Pleylist"
+    ? "Pleylistda hali video yo'q."
     : "Katalog ro'yxatida hozircha video yo'q.";
 
   orderedCatalog.forEach((item) => {
@@ -1193,7 +1201,7 @@ function renderLibrary() {
         <div class="library-item__duration">${formatDuration(Number(item.duration || 0))}</div>
         <div class="library-item__actions">
           <button class="send-button" type="button">Yuborish</button>
-          ${activeCategory === "Ombor" ? '<button class="more-button" type="button">O\'chirish</button>' : ""}
+          ${activeCategory === "Pleylist" ? '<button class="more-button" type="button">O\'chirish</button>' : ""}
         </div>
       </div>
     `;
@@ -1254,7 +1262,7 @@ function render() {
               <div class="meta__buttons thumb__buttons">
                 <button class="save-button" type="button">Saqlash</button>
                 <button class="send-button" type="button">Yuborish</button>
-                ${activeCategory === "Ombor" ? '<button class="delete-button" type="button">O\'chirish</button>' : ""}
+                ${activeCategory === "Pleylist" ? '<button class="delete-button" type="button">O\'chirish</button>' : ""}
               </div>
               <div class="thumb__label-wrap">
                 <div class="thumb__sub">${renderScrollingText(getDisplayDescription(item), "thumb__sub-marquee")}</div>
@@ -1508,10 +1516,11 @@ function getCurrentModalItem() {
 }
 
 searchToggleEl?.addEventListener("click", () => {
-  searchRowEl.classList.toggle("is-hidden");
+  searchInputEl.classList.toggle("is-hidden");
   syncSearchState();
-  if (!searchRowEl.classList.contains("is-hidden")) {
+  if (!searchInputEl.classList.contains("is-hidden")) {
     searchInputEl.focus();
+    searchInputEl.select();
   } else {
     searchInputEl.value = "";
     activeQuery = "";
@@ -1524,6 +1533,25 @@ searchInputEl?.addEventListener("input", (event) => {
   activeQuery = event.target.value.trim().toLowerCase();
   render();
   renderLibrary();
+});
+
+searchInputEl?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    searchInputEl.classList.add("is-hidden");
+    searchInputEl.value = "";
+    activeQuery = "";
+    syncSearchState();
+    render();
+    renderLibrary();
+  }
+});
+
+searchInputEl?.addEventListener("blur", () => {
+  if (searchInputEl.value.trim()) {
+    return;
+  }
+  searchInputEl.classList.add("is-hidden");
+  syncSearchState();
 });
 
 function openProfileModal() {
@@ -1545,29 +1573,34 @@ function closeProfileModal() {
 
 function showTopToast(message) {
   const normalized = String(message || "").trim();
-  if (!normalized) return;
+  if (!normalized || !topToastEl) return;
 
   const lower = normalized.toLowerCase();
-  let title = normalized;
-  let description = "";
+  let text = normalized;
 
   if (lower.includes("saqlandi")) {
-    title = "✅ Saqlandi!";
-    description = "Playlistingizni /playlist orqali ko'ring.";
+    text = "✅ Saqlandi. Playlistingizni /playlist orqali ko'ring.";
   } else if (lower.includes("yuborildi")) {
-    title = "📤 Yuborildi!";
+    text = "📤 Yuborildi.";
   } else if (lower.includes("yoqtirildi")) {
-    title = "👍 Yoqtirildi!";
-  } else if (lower.includes("o'chirildi") || lower.includes("ombordan olib tashlandi")) {
-    title = "🗑️ O'chirildi!";
+    text = "👍 Yoqtirildi.";
+  } else if (lower.includes("o'chirildi") || lower.includes("ombordan olib tashlandi") || lower.includes("pleylistdan olib tashlandi")) {
+    text = "🗑️ O'chirildi.";
   }
 
-  openSaveRedirectModal({
-    dialogTitle: "Telegram",
-    title,
-    description,
-    buttonText: "OK",
-  });
+  topToastEl.textContent = text;
+  topToastEl.classList.remove("is-hidden");
+  topToastEl.classList.add("is-visible");
+
+  if (topToastTimerId) {
+    window.clearTimeout(topToastTimerId);
+  }
+
+  topToastTimerId = window.setTimeout(() => {
+    topToastEl.classList.remove("is-visible");
+    topToastEl.classList.add("is-hidden");
+    topToastTimerId = null;
+  }, 2600);
 }
 
 function syncProfileUi() {
@@ -1630,7 +1663,7 @@ async function submitProfileId() {
   }
 
   if (selectedTargetUserId) {
-    const wasInOmbor = activeCategory === "Ombor";
+    const wasInOmbor = activeCategory === "Pleylist";
     selectedTargetUserId = "";
     telegramProfilePhotoUrl = "";
     persistTargetUserId("");
@@ -1661,7 +1694,7 @@ async function submitProfileId() {
   syncProfileUi();
   await loadTelegramProfilePhoto();
   await refreshSavedItems();
-  activeCategory = "Ombor";
+  activeCategory = "Pleylist";
   buildFilters(allItems);
   render();
   renderLibrary();
