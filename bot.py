@@ -980,6 +980,18 @@ def build_proxy_stream_url(video_id: int) -> str:
     return f"/api/video/{video_id}/play"
 
 
+def build_proxy_poster_url(video_id: int) -> str:
+    return f"/api/video/{video_id}/poster"
+
+
+def build_proxy_trailer_url(video_id: int) -> str:
+    return f"/api/video/{video_id}/trailer"
+
+
+def get_video_poster_source(video: dict[str, object]) -> str:
+    return str(video.get("poster_url", "") or video.get("preview_url", "") or "").strip()
+
+
 def get_video_stream_message(reason: str | None) -> str:
     messages = {
         "file_too_big": "Bu video katta bo'lgani uchun webda ochilmaydi. Uni botga yuboring.",
@@ -1027,11 +1039,12 @@ def build_video_stream_info(
     video_id = parse_int(video.get("id"))
     trailer_url = str(video.get("trailer_url", "") or "").strip()
     if trailer_url:
+        stream_url = build_proxy_trailer_url(video_id) if video_id is not None else trailer_url
         return {
             "playable": True,
             "reason": "",
             "message": "",
-            "stream_url": trailer_url,
+            "stream_url": stream_url,
             "upstream_url": trailer_url,
             "source": "external",
         }
@@ -1161,9 +1174,16 @@ def build_video_stream_info(
 
 def serialize_video_item(video: dict[str, object]) -> dict[str, object]:
     payload = dict(video)
+    video_id = parse_int(video.get("id"))
     stream_info = build_video_stream_info(video, probe=False)
-    payload["poster_url"] = str(video.get("poster_url", "") or video.get("preview_url", "") or "")
-    payload["trailer_url"] = str(video.get("trailer_url", "") or "")
+    poster_source = get_video_poster_source(video)
+    trailer_source = str(video.get("trailer_url", "") or "").strip()
+    payload["poster_url"] = (
+        build_proxy_poster_url(video_id) if poster_source and video_id is not None else poster_source
+    )
+    payload["trailer_url"] = (
+        build_proxy_trailer_url(video_id) if trailer_source and video_id is not None else trailer_source
+    )
     payload["preview_url"] = str(stream_info.get("stream_url", "") or "")
     payload["web_streamable"] = stream_info.get("playable")
     payload["web_stream_error"] = str(stream_info.get("reason", "") or "")
@@ -1532,18 +1552,90 @@ def build_video_file_response(video_id: int):
     return response
 
 
-@web_app.route("/api/video-file", methods=["GET", "HEAD"])
-def video_file():
-    raw_video_id = request.args.get("video_id", "")
-    video_id = parse_int(raw_video_id)
-    if video_id is None:
-        return jsonify({"success": False, "error": "video_id required"}), 400
-    return build_video_file_response(video_id)
+def build_external_file_response(file_url: str, *, context_name: str):
+    normalized_url = str(file_url or "").strip()
+    if not normalized_url:
+        return jsonify({"success": False, "error": "File not found"}), 404
+
+    try:
+        upstream_headers = {}
+        range_header = request.headers.get("Range")
+        if range_header:
+            upstream_headers["Range"] = range_header
+        if request.method == "HEAD":
+            upstream_request = urllib_request.Request(normalized_url, headers=upstream_headers, method="HEAD")
+        else:
+            upstream_request = urllib_request.Request(normalized_url, headers=upstream_headers)
+        upstream = urllib_request.urlopen(
+            upstream_request,
+            timeout=60,
+            context=TELEGRAM_FILE_SSL_CONTEXT,
+        )
+    except Exception as exc:
+        logger.exception("%s proxy xatoligi (%s): %s", context_name, normalized_url, exc)
+        return jsonify({"success": False, "error": "File yuklanmadi"}), 502
+
+    status_code = getattr(upstream, "status", upstream.getcode())
+    response = Response(status=status_code)
+    for header in (
+        "Accept-Ranges",
+        "Content-Length",
+        "Content-Range",
+        "Content-Type",
+        "ETag",
+        "Last-Modified",
+    ):
+        header_value = upstream.headers.get(header)
+        if header_value:
+            response.headers[header] = header_value
+    response.headers.setdefault("Accept-Ranges", "bytes")
+    response.headers["Cache-Control"] = "private, max-age=300"
+
+    if request.method == "HEAD":
+        upstream.close()
+        return response
+
+    def generate():
+        try:
+            while True:
+                chunk = upstream.read(64 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            upstream.close()
+
+    response.response = stream_with_context(generate())
+    response.direct_passthrough = True
+    return response
 
 
 @web_app.route("/api/video/<int:video_id>/play", methods=["GET", "HEAD"])
 def play_video(video_id: int):
     return build_video_file_response(video_id)
+
+
+@web_app.route("/api/video/<int:video_id>/poster", methods=["GET", "HEAD"])
+def video_poster(video_id: int):
+    video = get_video_by_number(video_id)
+    if not video:
+        return jsonify({"success": False, "error": "Video not found"}), 404
+    return build_external_file_response(
+        get_video_poster_source(video),
+        context_name=f"Poster {video_id}",
+    )
+
+
+@web_app.route("/api/video/<int:video_id>/trailer", methods=["GET", "HEAD"])
+def video_trailer(video_id: int):
+    video = get_video_by_number(video_id)
+    if not video:
+        return jsonify({"success": False, "error": "Video not found"}), 404
+    trailer_url = str(video.get("trailer_url", "") or "").strip()
+    return build_external_file_response(
+        trailer_url,
+        context_name=f"Trailer {video_id}",
+    )
 
 
 @web_app.route("/api/video/<int:video_id>/status")
@@ -1569,27 +1661,6 @@ def video_status(video_id: int):
         ),
         status_code,
     )
-
-
-@web_app.route("/api/video/<int:video_id>/stream")
-def stream_video(video_id: int):
-    try:
-        video = get_video_by_number(video_id)
-        if not video:
-            return jsonify({"success": False, "error": "Video not found"}), 404
-        stream_info = build_video_stream_info(video, probe=False)
-        return jsonify(
-            {
-                "success": True,
-                "video": serialize_video_item(video),
-                "stream_url": stream_info.get("stream_url", ""),
-                "playable": stream_info.get("playable"),
-                "reason": stream_info.get("reason", ""),
-                "message": stream_info.get("message", ""),
-            }
-        )
-    except Exception as exc:
-        return jsonify({"success": False, "error": str(exc)})
 
 
 @web_app.after_request
@@ -5346,6 +5417,27 @@ async def on_shutdown(app: Application) -> None:
     return
 
 
+async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    error = context.error
+    if isinstance(error, Conflict):
+        logger.error(
+            "Telegram polling konflikti: shu token bilan boshqa bot instance ham ishlayapti. "
+            "Joriy process to'xtatiladi."
+        )
+        print("❌ Bot boshqa joyda ham ishlayapti. Faqat bitta instance qoldiring.")
+        context.application.stop_running()
+        return
+
+    if isinstance(error, (TimedOut, NetworkError)):
+        logger.warning("Telegram tarmoq xatoligi: %s", error)
+        return
+
+    logger.error(
+        "Bot ichida kutilmagan xatolik",
+        exc_info=(type(error), error, error.__traceback__),
+    )
+
+
 def bootstrap_runtime_state() -> None:
     global RUNTIME_BOOTSTRAPPED
     if RUNTIME_BOOTSTRAPPED:
@@ -5390,6 +5482,7 @@ def main() -> None:
         .pool_timeout(30.0)
         .build()
     )
+    app.add_error_handler(on_error)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("malumot", malumot_command))
     app.add_handler(CommandHandler("videos", videos_command))

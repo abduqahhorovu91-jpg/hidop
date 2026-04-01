@@ -4,10 +4,20 @@ const tg = window.Telegram?.WebApp;
 const IS_LOCAL_HOST =
   window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const API_BASE_URL = IS_LOCAL_HOST ? "http://127.0.0.1:8000" : "";
+const DEFAULT_POSTER_URL = "/posters/merlin.jpg";
+const DEFAULT_TRAILER_URL = "/trailers/merlin.mp4";
 const TARGET_USER_STORAGE_KEY = "hidop_target_user_id";
 const THEME_STORAGE_KEY = "hidop_theme";
 const PROFILE_DETAILS_STORAGE_KEY = "hidop_profile_details";
-const THEMES = ["default", "sunset", "ocean", "forest", "summer"];
+const THEME_OPTIONS = [
+  { id: "default", label: "Tungi" },
+  { id: "sunset", label: "Sunset" },
+  { id: "ocean", label: "Ocean" },
+  { id: "forest", label: "Forest" },
+  { id: "aurora", label: "Aurora" },
+  { id: "horor", label: "Horor" },
+];
+const THEMES = THEME_OPTIONS.map((theme) => theme.id);
 
 function formatDuration(seconds = 0) {
   const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -30,6 +40,22 @@ function normalizeApiUrl(url) {
 
 function buildVideoFileUrl(itemId) {
   return `${API_BASE_URL}/api/video/${encodeURIComponent(itemId)}/play`;
+}
+
+function getPosterUrl(item) {
+  const explicitPosterUrl = String(item?.poster_url || item?.preview_url || "").trim();
+  if (explicitPosterUrl) {
+    return normalizeApiUrl(explicitPosterUrl);
+  }
+  return DEFAULT_POSTER_URL;
+}
+
+function getTrailerUrl(item) {
+  const explicitTrailerUrl = String(item?.trailer_url || "").trim();
+  if (explicitTrailerUrl) {
+    return normalizeApiUrl(explicitTrailerUrl);
+  }
+  return DEFAULT_TRAILER_URL;
 }
 
 function detectCategory(item) {
@@ -305,6 +331,7 @@ export default function App() {
     profileDetails.saved && profileDetails.firstName && profileDetails.lastName
       ? `${String(profileDetails.lastName).trim().slice(0, 1).toUpperCase()}.${String(profileDetails.firstName).trim()}`
       : "";
+  const profileDisplayName = shortProfileName || (selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT User");
   const profileDetailsHidden = Boolean(profileDetails.saved && !isProfileDetailsEditing);
   const activeOwnerId = selectedTargetUserId || getTelegramUserId() || "";
 
@@ -442,8 +469,8 @@ export default function App() {
             ageLabel: item.ageLabel || "Kutubxonada",
             palette: item.palette || detectPalette(item),
             preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
-            poster_url: normalizeApiUrl(item.poster_url || item.preview_url || ""),
-            trailer_url: normalizeApiUrl(item.trailer_url || ""),
+            poster_url: getPosterUrl(item),
+            trailer_url: getTrailerUrl(item),
             added_at: item.added_at || "",
             web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
             web_stream_error: item.web_stream_error || "",
@@ -480,8 +507,8 @@ export default function App() {
           items.map((item) => ({
             ...item,
             preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
-            poster_url: normalizeApiUrl(item.poster_url || item.preview_url || ""),
-            trailer_url: normalizeApiUrl(item.trailer_url || ""),
+            poster_url: getPosterUrl(item),
+            trailer_url: getTrailerUrl(item),
             web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
             web_stream_error: item.web_stream_error || "",
             web_stream_message: item.web_stream_message || "",
@@ -567,8 +594,8 @@ export default function App() {
             ageLabel: item.ageLabel || "Kutubxonada",
             palette: item.palette || detectPalette(item),
             preview_url: normalizeApiUrl(item.preview_url || (item.id ? buildVideoFileUrl(item.id) : "")),
-            poster_url: normalizeApiUrl(item.poster_url || item.preview_url || ""),
-            trailer_url: normalizeApiUrl(item.trailer_url || ""),
+            poster_url: getPosterUrl(item),
+            trailer_url: getTrailerUrl(item),
             added_at: item.added_at || "",
             web_streamable: typeof item.web_streamable === "boolean" ? item.web_streamable : null,
             web_stream_error: item.web_stream_error || "",
@@ -634,20 +661,10 @@ export default function App() {
         }
       }
 
-      const status = await fetchVideoStatus(modalItem);
       if (cancelled) return;
-      if (status.playable && status.stream_url) {
-        setModalVideoUrl(status.stream_url);
-        setModalVideoReady(true);
-        setModalVideoMessage("Video tayyorlanmoqda...");
-      } else {
-        setModalVideoUrl("");
-        setModalVideoReady(false);
-        setModalVideoMessage(
-          status.message ||
-            `Video: ${getDisplayTitle(modalItem)}. Bu video webda ochilmaydi. "Yuborish" tugmasi bilan botga yuboring.`,
-        );
-      }
+      setModalVideoUrl(DEFAULT_TRAILER_URL);
+      setModalVideoReady(true);
+      setModalVideoMessage("Treyler tayyorlanmoqda...");
     }
 
     loadModalState();
@@ -667,6 +684,8 @@ export default function App() {
   useEffect(() => {
     const video = modalVideoRef.current;
     if (!video || !modalVideoUrl || !modalVideoReady) return;
+    video.muted = false;
+    video.volume = 1;
     video.load();
     video
       .play()
@@ -957,8 +976,8 @@ export default function App() {
           preview_url: normalizeApiUrl(
             savedItem.preview_url || (savedItem.id ? buildVideoFileUrl(savedItem.id) : ""),
           ),
-          poster_url: normalizeApiUrl(savedItem.poster_url || savedItem.preview_url || ""),
-          trailer_url: normalizeApiUrl(savedItem.trailer_url || ""),
+          poster_url: getPosterUrl(savedItem),
+          trailer_url: getTrailerUrl(savedItem),
           web_streamable:
             typeof savedItem.web_streamable === "boolean" ? savedItem.web_streamable : null,
           web_stream_error: savedItem.web_stream_error || "",
@@ -1116,26 +1135,20 @@ export default function App() {
               H
             </button>
             <div className={`theme-panel ${themePanelOpen ? "" : "is-hidden"}`} aria-label="Rang variantlari">
-              {THEMES.map((themeName) => (
+              {THEME_OPTIONS.map(({ id, label }) => (
                 <button
-                  key={themeName}
-                  className={`theme-panel__option ${theme === themeName ? "is-active" : ""}`}
+                  key={id}
+                  className={`theme-panel__option ${theme === id ? "is-active" : ""}`}
                   type="button"
-                  data-theme={themeName}
+                  data-theme={id}
                   onClick={(event) => {
                     event.stopPropagation();
-                    setTheme(themeName);
+                    setTheme(id);
                     setThemePanelOpen(false);
                   }}
                 >
-                  <span className={`theme-panel__swatch theme-panel__swatch--${themeName}`}></span>
-                  <span>
-                    {themeName === "default"
-                      ? "Tungi"
-                      : themeName === "summer"
-                        ? "Yoz"
-                        : themeName[0].toUpperCase() + themeName.slice(1)}
-                  </span>
+                  <span className={`theme-panel__swatch theme-panel__swatch--${id}`}></span>
+                  <span>{label}</span>
                 </button>
               ))}
             </div>
@@ -1164,7 +1177,7 @@ export default function App() {
           </button>
           <Avatar className="profile-card__badge" photoUrl={photoUrl} fallbackText={profileBadgeText} />
           <p className="profile-card__eyebrow">Profil</p>
-          <h2 id="profileModalTitle">{selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT User"}</h2>
+          <h2 id="profileModalTitle">{profileDisplayName}</h2>
           <p className="profile-card__description">
             Pleylist, like va yuborish funksiyalarini profil ID bilan ulang.
           </p>
@@ -1328,11 +1341,13 @@ export default function App() {
                   {shortProfileName || "A.umidjon"}
                 </p>
                 <h3 className="profile-showcase__title">
-                  {selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT USER"}
+                  {profileDisplayName}
                 </h3>
                 <p className="profile-showcase__meta">
-                  {selectedTargetUserId
-                    ? "Telegram profilingiz shu bo'limda ko'rinadi."
+                  {shortProfileName
+                    ? "Sizga ism-familyangiz qisqartirilgan ko'rinishda murojaat qilinadi."
+                    : selectedTargetUserId
+                      ? "Telegram profilingiz shu bo'limda ko'rinadi."
                     : "Profil rasmini ko'rish uchun Telegram profilingizdan foydalaniladi."}
                 </p>
                 <div className={`profile-showcase__shared ${sharedProfileUsers.length ? "" : "is-hidden"}`}>
@@ -1408,8 +1423,7 @@ export default function App() {
 
             <section className="playlist">
               {filteredItems.map((item) => {
-                const canPreviewInCard = Boolean(item.trailer_url) || (item.web_streamable !== false && Boolean(item.preview_url || item.id));
-                const posterUrl = normalizeApiUrl(item.poster_url || item.preview_url || "");
+                const posterUrl = DEFAULT_POSTER_URL;
                 const palette = ["night", "instagram", "youtube"].includes(item.palette)
                   ? item.palette
                   : "night";
@@ -1425,67 +1439,10 @@ export default function App() {
                     onClick={() => setModalItem(item)}
                   >
                     <div className="card__frame">
-                      <div className={`thumb thumb--${palette}${canPreviewInCard ? " has-video" : ""}`} data-video-id={item.id}>
+                      <div className={`thumb thumb--${palette}`} data-video-id={item.id}>
                         {posterUrl ? (
                           <div className="thumb__poster" style={{ backgroundImage: `url('${posterUrl}')` }}></div>
                         ) : null}
-                        {canPreviewInCard ? (
-                          <video
-                            ref={(element) => {
-                              if (element) {
-                                previewRefs.current.set(String(item.id), element);
-                              } else {
-                                previewRefs.current.delete(String(item.id));
-                              }
-                            }}
-                            muted
-                            loop
-                            playsInline
-                            preload="none"
-                            poster={posterUrl || undefined}
-                            onPause={() => {
-                              if (activePreviewVideoRef.current === previewRefs.current.get(String(item.id))) {
-                                activePreviewVideoRef.current = null;
-                              }
-                              setActivePreviewKey("");
-                            }}
-                            onEnded={() => {
-                              if (activePreviewVideoRef.current === previewRefs.current.get(String(item.id))) {
-                                activePreviewVideoRef.current = null;
-                              }
-                              setActivePreviewKey("");
-                            }}
-                            onError={async () => {
-                              const refreshedStatus = await fetchVideoStatus(item, { force: true });
-                              if (!refreshedStatus.playable) {
-                                const video = previewRefs.current.get(String(item.id));
-                                if (video) {
-                                  video.removeAttribute("src");
-                                  video.dataset.ready = "false";
-                                  video.load();
-                                }
-                              }
-                              setActivePreviewKey("");
-                            }}
-                          ></video>
-                        ) : null}
-                        {canPreviewInCard ? (
-                          <div
-                            className="play-button"
-                            aria-label="Previewni ochish"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleToggleVideo(item);
-                            }}
-                            style={{
-                              display: activePreviewKey === String(item.id) ? "none" : "flex",
-                            }}
-                          >
-                            ▶
-                          </div>
-                        ) : (
-                          <div className="thumb__notice">Botda oching</div>
-                        )}
                         <div className="thumb__overlay">
                           <div className="thumb__head">
                             <div className="thumb__badge thumb__badge--title">
@@ -1626,19 +1583,19 @@ export default function App() {
                 className="video-modal__video"
                 controls
                 autoPlay
-                muted={false}
+                defaultMuted={false}
                 preload="auto"
                 playsInline
                 style={{ display: modalVideoReady ? "" : "none" }}
                 src={modalVideoUrl}
-                onError={async () => {
-                  const refreshedStatus = await fetchVideoStatus(modalItem, { force: true });
+                poster={DEFAULT_POSTER_URL}
+                onLoadedData={() => {
+                  setModalVideoReady(true);
+                }}
+                onError={() => {
                   setModalVideoReady(false);
-                  setModalVideoUrl("");
-                  setModalVideoMessage(
-                    refreshedStatus.message ||
-                      `Video: ${getDisplayTitle(modalItem)}. Video yuklanmadi. Uni botga yuborib ko'ring.`,
-                  );
+                  setModalVideoUrl(DEFAULT_TRAILER_URL);
+                  setModalVideoMessage("Treyler yuklanmadi.");
                 }}
               ></video>
             </div>
