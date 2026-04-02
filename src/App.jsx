@@ -329,11 +329,7 @@ export default function App() {
   })();
 
   const lookupKey = selectedTargetUserId || getTelegramUserId() || "guest";
-  const shortProfileName =
-    profileDetails.saved && profileDetails.firstName && profileDetails.lastName
-      ? `${String(profileDetails.lastName).trim().slice(0, 1).toUpperCase()}.${String(profileDetails.firstName).trim()}`
-      : "";
-  const profileDisplayName = shortProfileName || (selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT User");
+  const profileDisplayName = selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT User";
   const activeOwnerId = selectedTargetUserId || telegramUserId || "";
   const themeStorageKey = getThemeStorageKey(telegramUserId || "guest");
 
@@ -1285,17 +1281,12 @@ export default function App() {
                   fallbackText={profileBadgeText}
                 />
                 <p className="profile-showcase__eyebrow">Profil</p>
-                <p className={`profile-showcase__name ${shortProfileName ? "" : "is-hidden"}`}>
-                  {shortProfileName || "A.umidjon"}
-                </p>
                 <h3 className="profile-showcase__title">
                   {profileDisplayName}
                 </h3>
                 <p className="profile-showcase__meta">
-                  {shortProfileName
-                    ? "Sizga ism-familyangiz qisqartirilgan ko'rinishda murojaat qilinadi."
-                    : selectedTargetUserId
-                      ? "Telegram profilingiz shu bo'limda ko'rinadi."
+                  {selectedTargetUserId
+                    ? "Telegram profilingiz shu bo'limda ko'rinadi."
                     : "Profil rasmini ko'rish uchun Telegram profilingizdan foydalaniladi."}
                 </p>
                 <div className={`profile-showcase__shared ${sharedProfileUsers.length ? "" : "is-hidden"}`}>

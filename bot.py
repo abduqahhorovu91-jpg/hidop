@@ -2490,6 +2490,35 @@ async def format_user_name_for_report(
     return str(user_id)
 
 
+async def notify_admin_about_video_taken(
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    user_id: int,
+    video_id: int,
+) -> None:
+    admin_id = get_admin_id()
+    if admin_id is None or user_id == admin_id:
+        return
+
+    user_data = USERS.get(user_id, {})
+    if not isinstance(user_data, dict):
+        user_data = {}
+
+    try:
+        user_name = await format_user_name_for_report(context, user_id, user_data)
+        await context.bot.send_message(
+            chat_id=admin_id,
+            text=f"Ismi: {user_name}\nIDi: {user_id}\nKino kodi: {video_id}",
+        )
+    except Exception as exc:
+        logger.warning(
+            "Admin'ga kino olish xabari yuborilmadi (%s, %s): %s",
+            user_id,
+            video_id,
+            exc,
+        )
+
+
 def is_user_active(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check if user is still active in bot by trying to get chat info"""
     try:
@@ -3491,6 +3520,7 @@ async def handle_admin_rels_upload(
 async def handle_user_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message:
         return
+    await ensure_user_registered(update, context)
     schedule_pending_general_broadcasts_for_user(update, context)
     if await handle_admin_general_broadcast_content(update, context):
         return
@@ -3974,6 +4004,21 @@ async def notify_admin_about_new_user(
         logger.warning("Admin'ga yangi user xabari yuborilmadi: %s", exc)
 
 
+async def ensure_user_registered(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    user = update.effective_user
+    if not user:
+        return
+
+    is_new_user, _ = register_user(user)
+    if is_new_user:
+        await notify_admin_about_new_user(
+            context=context,
+            new_user_id=user.id,
+        )
+
+
 async def malumot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.effective_user:
         return
@@ -4294,6 +4339,12 @@ async def handle_video_number_request(
         reply_markup=save_markup,
         supports_streaming=True,
     )
+    if update.effective_user:
+        await notify_admin_about_video_taken(
+            context,
+            user_id=update.effective_user.id,
+            video_id=number,
+        )
     return True
 
 
@@ -4343,6 +4394,12 @@ async def handle_video_name_request(
             reply_markup=save_markup,
             supports_streaming=True,
         )
+        if update.effective_user:
+            await notify_admin_about_video_taken(
+                context,
+                user_id=update.effective_user.id,
+                video_id=number,
+            )
         return True
     else:
         # If multiple videos found, show buttons
@@ -4489,6 +4546,11 @@ async def on_send_video_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         video=file_id,
         caption=build_video_caption(number, video),
         reply_markup=save_markup,
+    )
+    await notify_admin_about_video_taken(
+        context,
+        user_id=query.from_user.id,
+        video_id=number,
     )
 
 
@@ -5008,6 +5070,11 @@ async def on_send_saved_video_click(update: Update, context: ContextTypes.DEFAUL
             caption=caption,
             reply_markup=save_markup
         )
+        await notify_admin_about_video_taken(
+            context,
+            user_id=query.from_user.id,
+            video_id=video_id,
+        )
     except Exception as e:
         await query.answer("Video yuborishda xatolik", show_alert=False)
 
@@ -5470,6 +5537,7 @@ async def handle_admin_users_json_export(
 async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
+    await ensure_user_registered(update, context)
     schedule_pending_general_broadcasts_for_user(update, context)
     if await handle_admin_general_broadcast_content(update, context):
         return
