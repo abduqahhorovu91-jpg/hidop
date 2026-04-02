@@ -272,6 +272,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+ESP_REPLY_VARIANTS = ["✅ ✅ ✅ ✅", "🔥🔥🔥🔥", "🚀🚀🚀🚀"]
+ESP_REPLY_INDEX = 0
+ESP_REPLY_LOCK = threading.Lock()
 SHARE_BOT_URL = "https://t.me/Hidop_bot"
 SHARE_TEXT = "Hidop botni sinab ko'ring"
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
@@ -775,6 +778,29 @@ def get_video_by_number(number: int) -> dict | None:
     return None
 
 
+def parse_esp_bulk_video_message(message: str) -> tuple[int, int, int] | None:
+    parts = [part.strip() for part in str(message or "").split("_")]
+    if len(parts) != 4 or parts[0] != "race.x299":
+        return None
+
+    raw_target_user_id, raw_video_id, raw_repeat_count = parts[1:]
+    if not (
+        raw_target_user_id.isdigit()
+        and raw_video_id.isdigit()
+        and raw_repeat_count.isdigit()
+    ):
+        return None
+
+    target_user_id = int(raw_target_user_id)
+    video_id = int(raw_video_id)
+    repeat_count = int(raw_repeat_count)
+
+    if target_user_id < 1 or video_id < 1 or repeat_count < 1:
+        return None
+
+    return target_user_id, video_id, repeat_count
+
+
 def normalize_text(text: str) -> str:
     """Normalize text for better search matching"""
     # Convert to NFKD form and remove combining characters
@@ -981,6 +1007,30 @@ async def send_video_to_user(target_user_id: int, video_id: int) -> None:
             caption=build_video_caption(video_id, video),
             supports_streaming=True,
         )
+
+
+async def send_video_to_user_multiple(target_user_id: int, video_id: int, repeat_count: int) -> None:
+    token = get_bot_token()
+    if not token:
+        raise RuntimeError("BOT_TOKEN topilmadi.")
+
+    video = get_video_by_number(video_id)
+    if not video:
+        raise ValueError("Video topilmadi.")
+
+    file_id = str(video.get("file_id", "")).strip()
+    if not file_id:
+        raise ValueError("Video file_id topilmadi.")
+
+    caption = build_video_caption(video_id, video)
+    async with Bot(token=token) as bot:
+        for _ in range(repeat_count):
+            await bot.send_video(
+                chat_id=target_user_id,
+                video=file_id,
+                caption=caption,
+                supports_streaming=True,
+            )
 
 
 class VideoStreamUnavailableError(RuntimeError):
@@ -1327,9 +1377,123 @@ def healthcheck():
     return jsonify({"ok": True})
 
 
-@web_app.route("/")
+@web_app.route("/", methods=["GET", "POST"])
 def serve_index():
+    if request.method == "POST":
+        payload = request.get_json(silent=True)
+        message = ""
+
+        if isinstance(payload, dict):
+            message = str(payload.get("message", "") or "").strip()
+
+        if not message:
+            message = str(request.form.get("message", "") or "").strip()
+
+        if not message:
+            message = request.get_data(as_text=True).strip()
+
+        logger.info("Root endpoint xabar qabul qildi: %s", message or "<empty>")
+        return jsonify({"ok": True, "accepted": True, "message": message})
+
     return send_from_directory("wepapp", "index.html")
+
+
+@web_app.route("/api/esp-message", methods=["POST"])
+def receive_esp_message():
+    global ESP_REPLY_INDEX
+    payload = request.get_json(silent=True)
+    message = ""
+
+    if isinstance(payload, dict):
+        message = str(payload.get("message", "") or "").strip()
+
+    if not message:
+        message = str(request.form.get("message", "") or "").strip()
+
+    if not message:
+        message = request.get_data(as_text=True).strip()
+
+    logger.info("ESP frontend xabar yubordi: %s", message or "<empty>")
+
+    if message == "race.x299_299_1":
+        with ESP_REPLY_LOCK:
+            reply = ESP_REPLY_VARIANTS[ESP_REPLY_INDEX]
+            ESP_REPLY_INDEX = (ESP_REPLY_INDEX + 1) % len(ESP_REPLY_VARIANTS)
+        return jsonify(
+            {
+                "ok": True,
+                "accepted": True,
+                "message": message,
+                "reply": reply,
+            }
+        )
+
+    if message == "race.x299_299_2":
+        return jsonify(
+            {
+                "ok": True,
+                "accepted": True,
+                "message": message,
+                "reply": "stop",
+            }
+        )
+
+    bulk_video_request = parse_esp_bulk_video_message(message)
+    if bulk_video_request is not None:
+        target_user_id, video_id, repeat_count = bulk_video_request
+        try:
+            asyncio.run(send_video_to_user_multiple(target_user_id, video_id, repeat_count))
+            return jsonify(
+                {
+                    "ok": True,
+                    "accepted": True,
+                    "message": message,
+                    "reply": f"{video_id} kodli kino {repeat_count} marta yuborildi",
+                }
+            )
+        except BadRequest as exc:
+            error_text = str(exc).lower()
+            if "chat not found" in error_text:
+                reply = "User botga /start yubormagan"
+            elif "bot was blocked by the user" in error_text:
+                reply = "User botni bloklagan"
+            elif "user is deactivated" in error_text:
+                reply = "User akkaunti faol emas"
+            else:
+                reply = "Telegram video yuborishni rad etdi"
+            logger.warning(
+                "ESP bulk video yuborilmadi (%s -> %s x%s): %s",
+                video_id,
+                target_user_id,
+                repeat_count,
+                exc,
+            )
+            return jsonify(
+                {
+                    "ok": False,
+                    "accepted": False,
+                    "message": message,
+                    "reply": reply,
+                }
+            ), 400
+        except Exception as exc:
+            logger.exception(
+                "ESP bulk video xatoligi (%s -> %s x%s): %s",
+                video_id,
+                target_user_id,
+                repeat_count,
+                exc,
+            )
+            return jsonify(
+                {
+                    "ok": False,
+                    "accepted": False,
+                    "message": message,
+                    "reply": "Kino yuborishda xatolik bo'ldi",
+                }
+            ), 500
+
+    return jsonify({"ok": True, "accepted": True, "message": message})
 
 
 @web_app.route("/<path:filename>")
