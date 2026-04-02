@@ -74,6 +74,7 @@ DATA_DIR = resolve_data_dir(DATA_DIR_ENV)
 DATA_FILES = (
     "users.json",
     "videos.json",
+    "rels.json",
     "uploaders.json",
     "saved_videos.json",
     "video_reactions.json",
@@ -183,6 +184,89 @@ def db_save_video_catalog(data):
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.warning(f"Error saving video catalog: {e}")
+
+
+def load_rels_items() -> list[dict[str, object]]:
+    try:
+        if not RELS_FILE.exists():
+            return []
+        with open(RELS_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+    except Exception as exc:
+        logger.warning("rels.json o'qilmadi: %s", exc)
+    return []
+
+
+def save_rels_items(items: list[dict[str, object]]) -> None:
+    try:
+        with open(RELS_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+    except Exception as exc:
+        logger.warning("rels.json yozilmadi: %s", exc)
+
+
+def add_video_to_rels(
+    *,
+    file_id: str,
+    file_unique_id: str,
+    added_by: int,
+    duration: int = 0,
+    file_size: int = 0,
+    caption: str = "",
+) -> int:
+    items = load_rels_items()
+    existing_ids = [int(item.get("id", 0)) for item in items if str(item.get("id", "")).isdigit()]
+    next_id = max(existing_ids, default=0) + 1
+    items.append(
+        {
+            "id": next_id,
+            "file_id": file_id,
+            "file_unique_id": file_unique_id,
+            "added_by": added_by,
+            "added_at": datetime.now().isoformat(timespec="seconds"),
+            "duration": duration,
+            "file_size": file_size,
+            "caption": caption.strip(),
+        }
+    )
+    save_rels_items(items)
+    return next_id
+
+
+def load_rels_media_items() -> list[dict[str, object]]:
+    if not RELS_MEDIA_DIR.exists() or not RELS_MEDIA_DIR.is_dir():
+        return []
+
+    allowed_suffixes = {".mp4", ".mov", ".m4v", ".webm"}
+    files = sorted(
+        [
+            path
+            for path in RELS_MEDIA_DIR.iterdir()
+            if path.is_file() and path.suffix.lower() in allowed_suffixes
+        ],
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+    items: list[dict[str, object]] = []
+    for index, file_path in enumerate(files, start=1):
+        stat = file_path.stat()
+        items.append(
+            {
+                "id": 100000 + index,
+                "title": file_path.stem.replace("_", " ").replace(" copy", "").strip() or f"Rels {index}",
+                "caption": "",
+                "duration": 0,
+                "file_size": int(stat.st_size or 0),
+                "added_at": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+                "trailer_url": f"/api/rels-media/{quote_plus(file_path.name)}",
+                "source": "folder",
+            }
+        )
+    return items
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
@@ -201,6 +285,8 @@ USERS_FILE = data_file("users.json")
 USERS: dict[int, dict[str, str]] = {}
 VIDEO_CATALOG_FILE = data_file("videos.json")
 VIDEO_CATALOG: dict[str, object] = {"next_id": 1, "items": []}
+RELS_FILE = data_file("rels.json")
+RELS_MEDIA_DIR = BASE_DIR / "rels"
 VIDEO_ADMIN_ID = 8239140931
 UPLOADERS_FILE = data_file("uploaders.json")
 VIDEO_UPLOADERS: set[int] = set()
@@ -261,6 +347,7 @@ UPLOADER_SELECT_MODE_KEY = "uploader_select_mode"
 UPLOADER_SELECT_ACTION_KEY = "uploader_select_action"
 UPLOADER_SELECT_OPTIONS_KEY = "uploader_select_options"
 UPLOAD_VIDEO_STATE_KEY = "upload_video_state"
+RELS_UPLOAD_STATE_KEY = "rels_upload_state"
 
 LANGUAGE_MESSAGES = {
     "lang_uz_lat": (
@@ -1267,6 +1354,31 @@ def get_videos():
         return jsonify({"success": True, "items": serialized_items})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)})
+
+
+@web_app.route("/api/rels")
+def get_rels():
+    try:
+        json_items = load_rels_items()
+        folder_items = load_rels_media_items()
+        serialized_json_items: list[dict[str, object]] = []
+        for item in json_items:
+            payload = dict(item)
+            rels_id = parse_int(item.get("id"))
+            if rels_id is not None:
+                payload["trailer_url"] = f"/api/rels/{rels_id}/play"
+            payload.setdefault("title", payload.get("caption", "") or f"Rels {rels_id or ''}".strip())
+            serialized_json_items.append(payload)
+        return jsonify({"success": True, "items": folder_items + serialized_json_items})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)})
+
+
+@web_app.route("/api/rels-media/<path:filename>", methods=["GET", "HEAD"])
+def get_rels_media_file(filename: str):
+    if not RELS_MEDIA_DIR.exists():
+        return jsonify({"success": False, "error": "File not found"}), 404
+    return send_from_directory(str(RELS_MEDIA_DIR), filename, conditional=True)
 
 
 @web_app.route("/api/search")
@@ -3332,6 +3444,50 @@ async def handle_admin_video_upload(
     return True
 
 
+async def rels_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    user = update.effective_user
+    chat = update.effective_chat
+    admin_id = get_admin_id() or VIDEO_ADMIN_ID
+    if not message or not user or not chat:
+        return
+    if user.id != admin_id or chat.id != user.id:
+        await message.reply_text("Bu buyruq faqat admin uchun.")
+        return
+
+    context.user_data[RELS_UPLOAD_STATE_KEY] = {"awaiting_video": True}
+    await message.reply_text("Video yuklang.")
+
+
+async def handle_admin_rels_upload(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    message = update.message
+    user = update.effective_user
+    chat = update.effective_chat
+    admin_id = get_admin_id() or VIDEO_ADMIN_ID
+    state = context.user_data.get(RELS_UPLOAD_STATE_KEY)
+
+    if not message or not user or not chat or not message.video:
+        return False
+    if user.id != admin_id or chat.id != user.id:
+        return False
+    if not isinstance(state, dict) or not state.get("awaiting_video"):
+        return False
+
+    rels_id = add_video_to_rels(
+        file_id=message.video.file_id,
+        file_unique_id=message.video.file_unique_id,
+        added_by=user.id,
+        duration=int(message.video.duration or 0),
+        file_size=int(message.video.file_size or 0),
+        caption=message.caption or "",
+    )
+    context.user_data.pop(RELS_UPLOAD_STATE_KEY, None)
+    await message.reply_text(f"Video rels.json ga saqlandi. ID: {rels_id}")
+    return True
+
+
 async def handle_user_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message:
         return
@@ -3341,6 +3497,8 @@ async def handle_user_non_text(update: Update, context: ContextTypes.DEFAULT_TYP
     if await handle_upload_video_photo(update, context):
         return
     if await handle_upload_video_trailer(update, context):
+        return
+    if await handle_admin_rels_upload(update, context):
         return
     if await handle_admin_video_upload(update, context):
         return
@@ -5486,6 +5644,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("malumot", malumot_command))
     app.add_handler(CommandHandler("videos", videos_command))
+    app.add_handler(CommandHandler("rels", rels_command))
     app.add_handler(CommandHandler("pleylist", handle_saved_videos_request))
     app.add_handler(CommandHandler("ombor", handle_saved_videos_request))
     app.add_handler(CallbackQueryHandler(on_thanks_click, pattern=r"^thanks_"))

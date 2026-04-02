@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const tg = window.Telegram?.WebApp;
 const IS_LOCAL_HOST =
   window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-const API_BASE_URL = IS_LOCAL_HOST ? "http://127.0.0.1:8000" : "";
+const API_BASE_URL = IS_LOCAL_HOST ? "http://127.0.0.1:8001" : "";
 const DEFAULT_POSTER_URL = "/posters/merlin.jpg";
 const DEFAULT_TRAILER_URL = "/trailers/merlin.mp4";
 const TARGET_USER_STORAGE_KEY = "hidop_target_user_id";
@@ -148,6 +148,11 @@ function getTelegramUserId() {
   return "";
 }
 
+function getThemeStorageKey(userId) {
+  const normalizedUserId = String(userId || "").trim();
+  return normalizedUserId ? `${THEME_STORAGE_KEY}:${normalizedUserId}` : THEME_STORAGE_KEY;
+}
+
 function getSearchScore(item, activeQuery) {
   const query = activeQuery.trim();
   if (!query) return 0;
@@ -275,6 +280,7 @@ function Avatar({ className, photoUrl, fallbackText, alt = "Profil rasmi" }) {
 }
 
 export default function App() {
+  const telegramUserId = getTelegramUserId();
   const [theme, setTheme] = useState("default");
   const [themePanelOpen, setThemePanelOpen] = useState(false);
   const [catalogItems, setCatalogItems] = useState([]);
@@ -288,8 +294,8 @@ export default function App() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileInputValue, setProfileInputValue] = useState("");
   const [profileDetails, setProfileDetails] = useState({});
-  const [isProfileDetailsEditing, setIsProfileDetailsEditing] = useState(false);
   const [topToastMessage, setTopToastMessage] = useState("");
+  const [soonBadgeVisible, setSoonBadgeVisible] = useState(false);
   const [modalItem, setModalItem] = useState(null);
   const [modalVideoUrl, setModalVideoUrl] = useState("");
   const [modalVideoReady, setModalVideoReady] = useState(false);
@@ -299,19 +305,15 @@ export default function App() {
     dislikes: 0,
     user_reaction: null,
   });
-  const [activePreviewKey, setActivePreviewKey] = useState("");
-
-  const previewRefs = useRef(new Map());
   const modalVideoRef = useRef(null);
-  const activePreviewVideoRef = useRef(null);
   const videoStatusCacheRef = useRef(new Map());
   const topToastTimerRef = useRef(null);
+  const soonBadgeTimerRef = useRef(null);
   const refreshIntervalRef = useRef(null);
   const catalogRefreshInFlightRef = useRef(false);
   const selectedTargetUserIdRef = useRef("");
   const profileInputRef = useRef(null);
   const holoInputRef = useRef(null);
-  const profileDetailsFirstNameRef = useRef(null);
   const pendingSendVideoIdsRef = useRef(new Set());
 
   selectedTargetUserIdRef.current = selectedTargetUserId;
@@ -332,8 +334,8 @@ export default function App() {
       ? `${String(profileDetails.lastName).trim().slice(0, 1).toUpperCase()}.${String(profileDetails.firstName).trim()}`
       : "";
   const profileDisplayName = shortProfileName || (selectedTargetUserId ? `ID ${selectedTargetUserId}` : "HIDOP BOT User");
-  const profileDetailsHidden = Boolean(profileDetails.saved && !isProfileDetailsEditing);
-  const activeOwnerId = selectedTargetUserId || getTelegramUserId() || "";
+  const activeOwnerId = selectedTargetUserId || telegramUserId || "";
+  const themeStorageKey = getThemeStorageKey(telegramUserId || "guest");
 
   const visibleSourceItems =
     activeCategory === "LANDING" || activeCategory === "PROFILE"
@@ -368,10 +370,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY) || "default";
+    const savedTheme = window.localStorage.getItem(themeStorageKey) || "default";
     setTheme(THEMES.includes(savedTheme) ? savedTheme : "default");
 
-    const telegramUserId = getTelegramUserId();
     if (telegramUserId) {
       setSelectedTargetUserId(telegramUserId);
       setProfileInputValue(telegramUserId);
@@ -382,12 +383,12 @@ export default function App() {
       setSelectedTargetUserId(normalizedTarget);
       setProfileInputValue(normalizedTarget);
     }
-  }, []);
+  }, [telegramUserId, themeStorageKey]);
 
   useEffect(() => {
     document.body.dataset.theme = THEMES.includes(theme) ? theme : "default";
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+    window.localStorage.setItem(themeStorageKey, theme);
+  }, [theme, themeStorageKey]);
 
   useEffect(() => {
     document.body.dataset.category = activeCategory.toLowerCase();
@@ -405,7 +406,6 @@ export default function App() {
     } catch {
       setProfileDetails({});
     }
-    setIsProfileDetailsEditing(false);
   }, [lookupKey]);
 
   useEffect(() => {
@@ -436,6 +436,23 @@ export default function App() {
   }, [topToastMessage]);
 
   useEffect(() => {
+    if (!soonBadgeVisible) return undefined;
+    if (soonBadgeTimerRef.current) {
+      window.clearTimeout(soonBadgeTimerRef.current);
+    }
+    soonBadgeTimerRef.current = window.setTimeout(() => {
+      setSoonBadgeVisible(false);
+      soonBadgeTimerRef.current = null;
+    }, 1800);
+    return () => {
+      if (soonBadgeTimerRef.current) {
+        window.clearTimeout(soonBadgeTimerRef.current);
+        soonBadgeTimerRef.current = null;
+      }
+    };
+  }, [soonBadgeVisible]);
+
+  useEffect(() => {
     if (!profileModalOpen) return;
     profileInputRef.current?.focus();
   }, [profileModalOpen]);
@@ -445,12 +462,6 @@ export default function App() {
       holoInputRef.current?.focus();
     }
   }, [activeCategory]);
-
-  useEffect(() => {
-    if (isProfileDetailsEditing) {
-      profileDetailsFirstNameRef.current?.focus();
-    }
-  }, [isProfileDetailsEditing]);
 
   useEffect(() => {
     async function loadCatalog() {
@@ -788,57 +799,6 @@ export default function App() {
     }
   }
 
-  function pauseOtherPreviewVideos(exceptKey = "") {
-    previewRefs.current.forEach((video, key) => {
-      if (!video || key === exceptKey) return;
-      video.pause();
-      video.dataset.ready = video.dataset.ready || "false";
-    });
-  }
-
-  async function handleToggleVideo(item) {
-    const video = previewRefs.current.get(String(item.id));
-    if (!video) return;
-
-    if (!video.paused) {
-      video.pause();
-      if (activePreviewVideoRef.current === video) {
-        activePreviewVideoRef.current = null;
-      }
-      setActivePreviewKey("");
-      return;
-    }
-
-    const status = await fetchVideoStatus(item);
-    if (!status.playable) {
-      showTopToast(status.message || "Bu video webda ochilmaydi.");
-      return;
-    }
-
-    pauseOtherPreviewVideos(String(item.id));
-    if (video.src !== status.stream_url) {
-      video.src = status.stream_url;
-      video.load();
-    }
-    video.dataset.ready = "true";
-    video.currentTime = 0;
-    video.preload = "metadata";
-    try {
-      await video.play();
-      activePreviewVideoRef.current = video;
-      setActivePreviewKey(String(item.id));
-    } catch (error) {
-      if (error?.name === "NotAllowedError") {
-        video.muted = true;
-        await video.play();
-        activePreviewVideoRef.current = video;
-        setActivePreviewKey(String(item.id));
-      } else {
-        showTopToast("Video ochilmadi. Uni botga yuborib ko'ring.");
-      }
-    }
-  }
-
   function openProfileModal() {
     if (isAutoDetectedUserId) return;
     setProfileInputValue(selectedTargetUserId);
@@ -847,25 +807,6 @@ export default function App() {
 
   function closeProfileModal() {
     setProfileModalOpen(false);
-  }
-
-  function openProfileDetailsEditor() {
-    setIsProfileDetailsEditing(true);
-  }
-
-  function saveProfileDetails() {
-    const firstName = String(profileDetails.firstName || "").trim();
-    const lastName = String(profileDetails.lastName || "").trim();
-    if (!firstName || !lastName) {
-      showAppAlert("Ism va familyani kiriting.");
-      return;
-    }
-
-    const payload = { firstName, lastName, saved: true };
-    window.localStorage.setItem(`${PROFILE_DETAILS_STORAGE_KEY}:${lookupKey}`, JSON.stringify(payload));
-    setProfileDetails(payload);
-    setIsProfileDetailsEditing(false);
-    showTopToast("saqlandi ✅");
   }
 
   async function submitProfileId() {
@@ -1112,6 +1053,16 @@ export default function App() {
           : activeCategory === "HOME"
             ? "playlist"
             : "home";
+  const showTopBar =
+    activeCategory === "LANDING" || activeCategory === "HOME" || activeCategory === "Pleylist";
+  const topBarTitle =
+    activeCategory === "HOME"
+      ? "Barcha kinolar"
+      : activeCategory === "Pleylist"
+        ? "Siz saqlagan videolar"
+        : "Hidop_bot";
+  const showCompactTopBar = activeCategory === "HOME" || activeCategory === "Pleylist";
+  const topBarCount = activeCategory === "HOME" ? catalogItems.length : savedItems.length;
 
   return (
     <div className="app-shell">
@@ -1119,53 +1070,61 @@ export default function App() {
         {topToastMessage || "saqlandi ✅"}
       </div>
 
-      <header className="telegram-bar" style={{ display: activeCategory === "LANDING" ? "" : "none" }}>
+      <header className="telegram-bar" style={{ display: showTopBar ? "" : "none" }}>
         <div className="telegram-bar__brand">
-          <div className="telegram-bar__theme">
-            <button
-              className="telegram-bar__logo"
-              type="button"
-              aria-label="Rang tanlash"
-              aria-expanded={themePanelOpen}
-              onClick={(event) => {
-                event.stopPropagation();
-                setThemePanelOpen((current) => !current);
-              }}
-            >
-              H
-            </button>
-            <div className={`theme-panel ${themePanelOpen ? "" : "is-hidden"}`} aria-label="Rang variantlari">
-              {THEME_OPTIONS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  className={`theme-panel__option ${theme === id ? "is-active" : ""}`}
-                  type="button"
-                  data-theme={id}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setTheme(id);
-                    setThemePanelOpen(false);
-                  }}
-                >
-                  <span className={`theme-panel__swatch theme-panel__swatch--${id}`}></span>
-                  <span>{label}</span>
-                </button>
-              ))}
+          {showCompactTopBar ? null : (
+            <div className="telegram-bar__theme">
+              <button
+                className="telegram-bar__logo"
+                type="button"
+                aria-label="Rang tanlash"
+                aria-expanded={themePanelOpen}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setThemePanelOpen((current) => !current);
+                }}
+              >
+                H
+              </button>
+              <div className={`theme-panel ${themePanelOpen ? "" : "is-hidden"}`} aria-label="Rang variantlari">
+                {THEME_OPTIONS.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    className={`theme-panel__option ${theme === id ? "is-active" : ""}`}
+                    type="button"
+                    data-theme={id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setTheme(id);
+                      setThemePanelOpen(false);
+                    }}
+                  >
+                    <span className={`theme-panel__swatch theme-panel__swatch--${id}`}></span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           <div className="telegram-bar__content">
-            <strong>Hidop_bot</strong>
+            <strong>{topBarTitle}</strong>
           </div>
-          <div className="telegram-bar__actions">
-            <button
-              className={`telegram-bar__icon telegram-bar__profile ${photoUrl ? "has-photo-avatar" : ""}`}
-              type="button"
-              aria-label={selectedTargetUserId ? `Profil ${selectedTargetUserId}` : "Profil"}
-              onClick={openProfileModal}
-            >
-              <Avatar className="profile-badge" photoUrl={photoUrl} fallbackText={profileBadgeText} />
-            </button>
-          </div>
+          {showCompactTopBar ? (
+            <div className="telegram-bar__count" aria-label={`Jami ${topBarCount} ta`}>
+              {topBarCount} ta
+            </div>
+          ) : (
+            <div className="telegram-bar__actions">
+              <button
+                className={`telegram-bar__icon telegram-bar__profile ${photoUrl ? "has-photo-avatar" : ""}`}
+                type="button"
+                aria-label={selectedTargetUserId ? `Profil ${selectedTargetUserId}` : "Profil"}
+                onClick={openProfileModal}
+              >
+                <Avatar className="profile-badge" photoUrl={photoUrl} fallbackText={profileBadgeText} />
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -1315,22 +1274,11 @@ export default function App() {
                 </h3>
               </div>
             </section>
-
             <section
               className={`profile-showcase ${activeCategory === "PROFILE" ? "" : "is-hidden"}`}
               aria-label="Profil oynasi"
             >
               <div className="profile-showcase__card">
-                <button
-                  className="profile-showcase__menu"
-                  type="button"
-                  aria-label="Profilni tahrirlash"
-                  onClick={openProfileDetailsEditor}
-                >
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </button>
                 <Avatar
                   className="profile-showcase__avatar"
                   photoUrl={photoUrl}
@@ -1377,48 +1325,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
-              <div className={`profile-showcase__details-card ${profileDetailsHidden ? "is-hidden" : ""}`}>
-                <p className="profile-showcase__details-eyebrow">Shaxsiy ma&apos;lumot</p>
-                <div className="profile-showcase__fields">
-                  <label className="profile-showcase__field">
-                    <span className="profile-showcase__field-label">Ism</span>
-                    <input
-                      ref={profileDetailsFirstNameRef}
-                      className="profile-showcase__input"
-                      type="text"
-                      placeholder="Ismingiz"
-                      autoComplete="given-name"
-                      value={profileDetails.firstName || ""}
-                      onChange={(event) =>
-                        setProfileDetails((current) => ({ ...current, firstName: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="profile-showcase__field">
-                    <span className="profile-showcase__field-label">Familya</span>
-                    <input
-                      className="profile-showcase__input"
-                      type="text"
-                      placeholder="Familyangiz"
-                      autoComplete="family-name"
-                      value={profileDetails.lastName || ""}
-                      onChange={(event) =>
-                        setProfileDetails((current) => ({ ...current, lastName: event.target.value }))
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          saveProfileDetails();
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-                <button className="profile-showcase__save" type="button" onClick={saveProfileDetails}>
-                  Saqlash
-                </button>
-              </div>
             </section>
 
             <section className="playlist">
@@ -1454,16 +1360,18 @@ export default function App() {
                           </div>
                           <div className="thumb__content">
                             <div className="meta__buttons thumb__buttons">
-                              <button
-                                className="save-button"
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  saveVideoToProfile(item);
-                                }}
-                              >
-                                Saqlash
-                              </button>
+                              {activeCategory !== "Pleylist" ? (
+                                <button
+                                  className="save-button"
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    saveVideoToProfile(item);
+                                  }}
+                                >
+                                  Saqlash
+                                </button>
+                              ) : null}
                               <button
                                 className="send-button"
                                 type="button"
@@ -1520,12 +1428,21 @@ export default function App() {
           <span className="bottom-dock__icon bottom-dock__icon--home"></span>
         </button>
         <button
+          className="bottom-dock__item"
+          type="button"
+          aria-label="Videolar tezkor tugmasi"
+          onClick={() => setSoonBadgeVisible(true)}
+        >
+          <span className={`bottom-dock__soon ${soonBadgeVisible ? "is-visible" : ""}`}>Tez orada</span>
+          <span className="bottom-dock__icon bottom-dock__icon--reels-outline"></span>
+        </button>
+        <button
           className={`bottom-dock__item ${activeDock === "playlist" ? "is-active" : ""}`}
           type="button"
           aria-label="Videolar"
           onClick={() => handleBottomDock("HOME")}
         >
-          <span className="bottom-dock__count">{catalogItems.length}</span>
+          <span className={`bottom-dock__count ${activeDock === "playlist" ? "" : "is-hidden"}`}>{catalogItems.length}</span>
           <span className="bottom-dock__icon bottom-dock__icon--reels"></span>
         </button>
         <button
@@ -1534,7 +1451,9 @@ export default function App() {
           aria-label="Saqlangan videolar"
           onClick={() => handleBottomDock("Pleylist")}
         >
-          <span className="bottom-dock__count bottom-dock__count--saved">{savedItems.length}</span>
+          <span className={`bottom-dock__count bottom-dock__count--saved ${activeDock === "saved" ? "" : "is-hidden"}`}>
+            {savedItems.length}
+          </span>
           <span className="bottom-dock__icon bottom-dock__icon--saved"></span>
         </button>
         <button
@@ -1544,7 +1463,7 @@ export default function App() {
           onClick={() => handleBottomDock("EMPTY")}
         >
           <span
-            className={`bottom-dock__count bottom-dock__count--results ${activeCategory === "EMPTY" && activeQuery.trim() ? "" : "is-hidden"}`}
+            className={`bottom-dock__count bottom-dock__count--results ${activeDock === "empty" && activeCategory === "EMPTY" && activeQuery.trim() ? "" : "is-hidden"}`}
           >
             {filteredItems.length}
           </span>
