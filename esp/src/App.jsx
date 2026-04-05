@@ -1,425 +1,247 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const ESP_COMMAND_PATH = "/command";
-const ESP_STATUS_PATH = "/status";
-const ESP_STATE_STORAGE_KEY = "hidop-esp-runtime-state";
-const START_MESSAGE = "race.x299_299_1";
-const STOP_MESSAGE = "race.x299_299_2";
-const REQUEST_TIMEOUT_MS = 15_000;
-const INTERVAL_OPTIONS = [
-  { label: "10 sekund", value: 10_000 },
-  { label: "30 sekund", value: 30_000 },
-  { label: "1 daqiqa", value: 60_000 },
+const intervalOptions = [
+  { label: "10 sekund", value: "10s" },
+  { label: "30 sekund", value: "30s" },
+  { label: "1 daqiqa", value: "1m" },
 ];
-
-function decodeReplyText(value) {
-  const text = String(value || "");
-  if (!text.includes("\\u")) {
-    return text;
-  }
-
-  try {
-    return JSON.parse(`"${text.replace(/"/g, '\\"')}"`);
-  } catch {
-    return text;
-  }
-}
+const DEVICE_URL_API = "/api/device-url";
+const DEVICE_STATUS_API = "/api/device-status";
+const DEVICE_COMMAND_API = "/api/esp-command";
 
 export default function App() {
-  const intervalRef = useRef(null);
-  const liveStatusIntervalRef = useRef(null);
-  const [espDeviceUrl, setEspDeviceUrl] = useState(() => {
-    if (typeof window === "undefined") return "";
-    try {
-      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
-      const parsed = raw ? JSON.parse(raw) : {};
-      return String(parsed.espDeviceUrl || "").trim();
-    } catch {
-      return "";
-    }
-  });
-  const [isEspLive, setIsEspLive] = useState(false);
-  const [isRunning, setIsRunning] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
-      const parsed = raw ? JSON.parse(raw) : {};
-      return Boolean(parsed.isRunning);
-    } catch {
-      return false;
-    }
-  });
-  const [sendCount, setSendCount] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    try {
-      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
-      const parsed = raw ? JSON.parse(raw) : {};
-      return Number(parsed.sendCount) || 0;
-    } catch {
-      return 0;
-    }
-  });
-  const [statusText, setStatusText] = useState(() => {
-    if (typeof window === "undefined") return "Tayyor";
-    try {
-      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
-      const parsed = raw ? JSON.parse(raw) : {};
-      return String(parsed.statusText || "Tayyor");
-    } catch {
-      return "Tayyor";
-    }
-  });
-  const [replyText, setReplyText] = useState(() => {
-    if (typeof window === "undefined") return "";
-    try {
-      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
-      const parsed = raw ? JSON.parse(raw) : {};
-      return String(parsed.replyText || "");
-    } catch {
-      return "";
-    }
-  });
-  const [selectedIntervalMs, setSelectedIntervalMs] = useState(() => {
-    if (typeof window === "undefined") return INTERVAL_OPTIONS[0].value;
-    try {
-      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
-      const parsed = raw ? JSON.parse(raw) : {};
-      const nextValue = Number(parsed.selectedIntervalMs);
-      return Number.isFinite(nextValue) && nextValue >= 1000
-        ? nextValue
-        : INTERVAL_OPTIONS[0].value;
-    } catch {
-      return INTERVAL_OPTIONS[0].value;
-    }
-  });
-  const [isStopConfirming, setIsStopConfirming] = useState(false);
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
-  const [pageAlert, setPageAlert] = useState("");
+  const [deviceUrl, setDeviceUrl] = useState("");
+  const [selectedInterval, setSelectedInterval] = useState(intervalOptions[0].value);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isDeviceOnline, setIsDeviceOnline] = useState(false);
+  const [isBotActive, setIsBotActive] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
+  const [sentLogs, setSentLogs] = useState([]);
+  const [topAlert, setTopAlert] = useState("");
+
+  const statusLabel = useMemo(() => {
+    if (!deviceUrl.trim()) return "ESP32 URL kutilmoqda";
+    if (!isDeviceOnline || !isBotActive) return "nofaol";
+    return isRunning ? "faol" : "tayyor";
+  }, [deviceUrl, isBotActive, isDeviceOnline, isRunning]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    let cancelled = false;
 
-    window.localStorage.setItem(
-      ESP_STATE_STORAGE_KEY,
-      JSON.stringify({
-        espDeviceUrl,
-        isRunning,
-        sendCount,
-        statusText,
-        replyText,
-        selectedIntervalMs,
-      }),
-    );
-  }, [espDeviceUrl, isRunning, sendCount, statusText, replyText, selectedIntervalMs]);
-
-  useEffect(() => {
-    async function loadEspRuntimeStatus(deviceUrl) {
-      if (!deviceUrl) {
-        return false;
-      }
-
+    async function syncDeviceUrlFromBackend() {
       try {
-        const response = await fetch(`${deviceUrl}${ESP_STATUS_PATH}`, {
-          cache: "no-store",
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok || !payload) {
-          return false;
+        const response = await fetch(DEVICE_URL_API, { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        if (cancelled) return;
+
+        const nextUrl = String(payload?.url || "").trim();
+        if (nextUrl && nextUrl !== deviceUrl) {
+          setDeviceUrl(nextUrl);
         }
-
-        const nextIntervalMs = Number(payload.intervalMs);
-        if (Number.isFinite(nextIntervalMs) && nextIntervalMs >= 1000) {
-          setSelectedIntervalMs(nextIntervalMs);
-        }
-
-        setIsEspLive(true);
-        setIsRunning(Boolean(payload.running));
-        setSendCount(Number(payload.sendCount) || 0);
-
-        const nextStatus = String(payload.lastStatus || "").trim();
-        const nextReply = String(payload.lastReply || "").trim();
-
-        if (nextStatus) {
-          setStatusText(nextStatus === "running" ? "Ishga tushgan" : nextStatus);
-        }
-
-        if (nextReply) {
-          setReplyText(decodeReplyText(nextReply));
-        }
-        return true;
       } catch {
-        // ESP32 statusini o'qib bo'lmasa, mavjud UI holatini saqlab qolamiz.
-        return false;
+        // Backend bo'lmasa joriy holatni saqlaymiz.
       }
     }
 
-    async function refreshEspConnection() {
-      const storedUrl = espDeviceUrl.trim().replace(/\/+$/, "");
-      if (!storedUrl) {
-        setIsEspLive(false);
-        setStatusText("ESP32 URL kiriting");
-        setReplyText("Sayt ESP32 bilan to'g'ridan-to'g'ri ishlaydi");
-        setPageAlert("ESP32 URL hali kiritilmagan");
-        return;
-      }
-
-      const statusLoaded = await loadEspRuntimeStatus(storedUrl);
-      if (statusLoaded) {
-        setStatusText("ESP32 topildi");
-        setPageAlert("");
-        return;
-      }
-
-      setIsEspLive(false);
-      setStatusText("ESP32 topilmadi");
-      setReplyText("Saqlangan URL bo'yicha qurilmaga ulanib bo'lmadi");
-      setPageAlert("ESP bilan aloqa yo'q: saqlangan URL bo'yicha qurilmaga ulanib bo'lmadi");
-    }
-
-    refreshEspConnection();
-
-    liveStatusIntervalRef.current = window.setInterval(() => {
-      refreshEspConnection();
-    }, 5000);
+    syncDeviceUrlFromBackend();
+    const intervalId = window.setInterval(syncDeviceUrlFromBackend, 5000);
 
     return () => {
-      if (liveStatusIntervalRef.current) {
-        window.clearInterval(liveStatusIntervalRef.current);
-        liveStatusIntervalRef.current = null;
-      }
+      cancelled = true;
+      window.clearInterval(intervalId);
     };
-  }, [espDeviceUrl]);
-
-  function handleConfigureUrl() {
-    const currentUrl = espDeviceUrl.trim();
-    const nextValue = window.prompt("ESP32 URL kiriting", currentUrl || "http://192.168.1.113");
-    if (nextValue === null) {
-      return;
-    }
-
-    const normalizedUrl = nextValue.trim().replace(/\/+$/, "");
-    if (!normalizedUrl) {
-      setPageAlert("ESP32 URL bo'sh bo'lmasligi kerak");
-      return;
-    }
-
-    setEspDeviceUrl(normalizedUrl);
-    setPageAlert("");
-    setStatusText("ESP32 URL saqlandi");
-    setReplyText(`Yangi manzil: ${normalizedUrl}`);
-  }
+  }, [deviceUrl]);
 
   useEffect(() => {
-    function handleOnline() {
-      setIsOnline(true);
-      setPageAlert("");
+    let cancelled = false;
+
+    async function syncDeviceStatus() {
+      try {
+        const response = await fetch(DEVICE_STATUS_API, { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        if (cancelled) return;
+
+        const device = payload?.device || {};
+        const nextUrl =
+          String(device?.deviceUrl || "").trim() ||
+          (device?.ip ? `http://${device.ip}` : "");
+
+        if (nextUrl && nextUrl !== deviceUrl) {
+          setDeviceUrl(nextUrl);
+        }
+
+        setIsDeviceOnline(true);
+        setIsBotActive(Boolean(device?.botConnected));
+        setIsRunning(Boolean(device?.running));
+        setSentCount(Number(device?.sendCount) || 0);
+
+        const reply = String(device?.lastReply || "").trim();
+        if (reply) {
+          if (reply.toLowerCase() === "bot to'xtatildi") {
+            setTopAlert("bot to'xtatildi");
+          }
+          setSentLogs((current) => {
+            if (current[0] === reply) {
+              return current;
+            }
+            return [reply, ...current].slice(0, 6);
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setIsDeviceOnline(false);
+          setIsBotActive(false);
+          setIsRunning(false);
+        }
+      }
     }
 
-    function handleOffline() {
-      setIsOnline(false);
-      setStatusText("Internet uzildi");
-      setReplyText("Qurilma hozir offline holatda");
-      setPageAlert("Internet uzildi");
-    }
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+    syncDeviceStatus();
+    const intervalId = window.setInterval(syncDeviceStatus, 5000);
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      if (intervalRef.current) {
-        window.clearInterval(intervalRef.current);
-      }
+      cancelled = true;
+      window.clearInterval(intervalId);
     };
-  }, []);
+  }, [deviceUrl]);
 
-  useEffect(() => {
-    if (!isRunning) {
-      return undefined;
-    }
-
-    if (intervalRef.current) {
-      window.clearInterval(intervalRef.current);
-    }
-
-    intervalRef.current = window.setInterval(() => {
-      sendMessage(START_MESSAGE);
-    }, selectedIntervalMs);
-
-    return () => {
-      if (intervalRef.current) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isRunning, selectedIntervalMs]);
-
-  async function postToEsp(path, requestPayload) {
-    if (!isOnline) {
-      throw new Error("Internet ulanmagani uchun yuborilmadi");
-    }
-
-    if (!espDeviceUrl) {
-      throw new Error("ESP32 ulanmagan");
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      controller.abort();
-    }, REQUEST_TIMEOUT_MS);
-
+  async function persistDeviceUrl(nextUrl) {
     try {
-      const response = await fetch(`${espDeviceUrl}${path}`, {
+      await fetch(DEVICE_URL_API, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        signal: controller.signal,
-        body: JSON.stringify(requestPayload),
+        body: JSON.stringify({ url: nextUrl }),
       });
-
-      const responsePayload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const replyMessage =
-          responsePayload &&
-          typeof responsePayload.reply === "string" &&
-          responsePayload.reply.trim()
-            ? responsePayload.reply
-            : `HTTP ${response.status}`;
-        throw new Error(replyMessage);
-      }
-
-      return responsePayload;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Noma'lum xatolik";
-
-      const visibleMessage =
-        error instanceof DOMException && error.name === "AbortError"
-          ? "Server javob bermadi"
-          : errorMessage;
-      throw new Error(visibleMessage);
-    } finally {
-      window.clearTimeout(timeoutId);
+    } catch {
+      // Front ishlashida to'siq qilmaymiz.
     }
   }
 
-  async function sendMessage(message) {
-    setStatusText("Yuborilyapti...");
-    setPageAlert("");
+  async function postCommand(message) {
+    const response = await fetch(DEVICE_COMMAND_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message,
+        intervalMs:
+          selectedInterval === "10s" ? 10000 : selectedInterval === "30s" ? 30000 : 60000,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || "ESP32 javob bermadi");
+    }
+
+    return response.json();
+  }
+
+  async function handleStart() {
+    if (!deviceUrl.trim()) return;
 
     try {
-      const payload = await postToEsp(ESP_COMMAND_PATH, {
-        message,
-        intervalMs: selectedIntervalMs,
-      });
-
-      setSendCount((current) => current + 1);
-      setStatusText("Yuborildi");
-      setReplyText(
-        payload && typeof payload.reply === "string" && payload.reply.trim()
-          ? decodeReplyText(payload.reply)
-          : "ESP32 ga yuborildi",
-      );
-    } catch (error) {
-      const visibleMessage =
-        error instanceof Error ? error.message : "Noma'lum xatolik";
-      setStatusText(`Yuborilmadi: ${visibleMessage}`);
-      setReplyText(visibleMessage);
-      setPageAlert(`ESP bilan aloqa yo'q: ${visibleMessage}`);
-    }
-  }
-
-  function handleStart() {
-    if (!espDeviceUrl.trim()) {
+      const payload = await postCommand("race.x299_299_1");
+      setIsDeviceOnline(true);
+      const device = payload?.device || {};
+      setIsBotActive(Boolean(device?.botConnected));
+      setIsRunning(Boolean(device?.running ?? true));
+      setSentCount(Number(device?.sendCount) || 0);
+      setTopAlert("");
+      if (device?.lastReply) {
+        setSentLogs((current) => [device.lastReply, ...current].slice(0, 6));
+      }
+    } catch {
+      setIsDeviceOnline(false);
+      setIsBotActive(false);
       setIsRunning(false);
-      setStatusText("ESP32 URL kiriting");
-      setReplyText("Avval URL tugmasidan qurilma manzilini yozing");
-      setPageAlert("Start uchun avval ESP32 URL kiriting");
-      return;
     }
-
-    if (intervalRef.current) {
-      return;
-    }
-
-    setIsStopConfirming(false);
-    setIsRunning(true);
-    setStatusText("Ishga tushdi");
-    setReplyText("");
-    sendMessage(START_MESSAGE);
   }
 
   async function handleStop() {
-    if (!isStopConfirming) {
-      setIsStopConfirming(true);
-      setStatusText("To'xtatishni tasdiqlang");
-      setReplyText("Stop ni yana bir marta bossangiz to'xtaydi");
-      return;
+    try {
+      const payload = await postCommand("race.x299_299_2");
+      setIsDeviceOnline(true);
+      const device = payload?.device || {};
+      setIsBotActive(Boolean(device?.botConnected));
+      setSentCount(Number(device?.sendCount) || 0);
+      setTopAlert("bot to'xtatildi");
+      if (device?.lastReply) {
+        setSentLogs((current) => [device.lastReply, ...current].slice(0, 6));
+      }
+    } finally {
+      setIsRunning(false);
     }
-
-    if (intervalRef.current) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    setIsStopConfirming(false);
-    setIsRunning(false);
-    setStatusText("To'xtatildi");
-    await sendMessage(STOP_MESSAGE);
   }
 
   return (
-    <div className="page-shell">
-      {pageAlert ? <div className="page-alert">{pageAlert}</div> : null}
-      <div className="top-block">
-        <button type="button" className="url-config-button" onClick={handleConfigureUrl}>
-          url
-        </button>
-        <p className="top-line">
-          Interval:{" "}
-          {INTERVAL_OPTIONS.find((item) => item.value === selectedIntervalMs)
-            ?.label || "10 sekund"}
-        </p>
-        <p className="top-line">Yuborilgan: {sendCount} marta</p>
-        <p className="top-line top-line-url">{espDeviceUrl || "ESP32 URL kutilmoqda..."}</p>
-        {isEspLive ? <p className="top-live">live...</p> : null}
-        <p className="top-status">{statusText}</p>
-        {replyText ? <p className="top-reply">{replyText}</p> : null}
-      </div>
-      <div className="interval-card">
-        <p className="section-label">Interval</p>
-        <div className="interval-row">
-          {INTERVAL_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`chip-button${selectedIntervalMs === option.value ? " is-active" : ""}`}
-              onClick={() => setSelectedIntervalMs(option.value)}
-            >
-              {option.label}
+    <main className="page-shell">
+      {topAlert ? <div className="top-alert">{topAlert}</div> : null}
+      <section className="panel-grid">
+        <article className="panel panel-primary">
+          <div className="panel-head">
+            <span className="panel-label">Qurilma</span>
+            <span className={`dot${isBotActive ? " is-live" : ""}`} />
+          </div>
+          <div className="info-row">
+            <div>
+              <span className="meta-label">Interval</span>
+              <strong>
+                {intervalOptions.find((item) => item.value === selectedInterval)?.label}
+              </strong>
+            </div>
+            <div>
+              <span className="meta-label">Holati</span>
+              <strong>{isBotActive ? "faol" : "nofaol"}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Yuborilgan</span>
+              <strong>{sentCount} marta</strong>
+            </div>
+          </div>
+          <div className="history-block">
+            <span className="meta-label">Yuborilgan ro'yhat</span>
+            <div className="history-list">
+              {sentLogs.length > 0 ? (
+                sentLogs.map((item) => <div key={item} className="history-item">{item}</div>)
+              ) : (
+                <div className="history-empty">Hali buyruq yuborilmagan</div>
+              )}
+            </div>
+          </div>
+        </article>
+
+        <article className="panel">
+          <span className="panel-label">Interval</span>
+          <div className="chip-row">
+            {intervalOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`chip${selectedInterval === option.value ? " is-active" : ""}`}
+                onClick={() => setSelectedInterval(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="action-row">
+            <button type="button" className="action-button is-muted" onClick={handleStop}>
+              stop
             </button>
-          ))}
-        </div>
-      </div>
-      <div className="button-row">
-        <button
-          type="button"
-          className={`action-button${isStopConfirming ? " is-danger" : ""}`}
-          onClick={handleStop}
-        >
-          {isStopConfirming ? "tasdiqla" : "stop"}
-        </button>
-        <button type="button" className="action-button" onClick={handleStart}>
-          start
-        </button>
-      </div>
-    </div>
+            <button type="button" className="action-button" onClick={handleStart}>
+              start
+            </button>
+          </div>
+        </article>
+      </section>
+    </main>
   );
 }
