@@ -36,6 +36,9 @@ body {
 }
 
 .page-alert {
+  position: sticky;
+  top: 10px;
+  z-index: 10;
   width: 100%;
   padding: 12px 14px;
   border: 1px solid rgba(255, 132, 132, 0.34);
@@ -47,6 +50,21 @@ body {
   box-shadow:
     0 12px 24px rgba(0, 0, 0, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: page-alert-in 0.24s ease-out;
+}
+
+@keyframes page-alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .top-block {
@@ -65,6 +83,23 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.url-config-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-width: 44px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(247, 244, 234, 0.84);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .top-line {
@@ -203,6 +238,14 @@ body {
 
   .top-block {
     padding: 16px;
+  }
+
+  .url-config-button {
+    top: 12px;
+    right: 12px;
+    min-width: 42px;
+    min-height: 30px;
+    padding: 0 10px;
   }
 
   .interval-card {

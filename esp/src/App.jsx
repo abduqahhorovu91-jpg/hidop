@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-const ESP_DEVICE_URL_API = "/api/esp-device-url";
 const ESP_COMMAND_PATH = "/command";
 const ESP_STATUS_PATH = "/status";
 const ESP_STATE_STORAGE_KEY = "hidop-esp-runtime-state";
@@ -137,6 +136,7 @@ export default function App() {
           setSelectedIntervalMs(nextIntervalMs);
         }
 
+        setIsEspLive(true);
         setIsRunning(Boolean(payload.running));
         setSendCount(Number(payload.sendCount) || 0);
 
@@ -157,57 +157,33 @@ export default function App() {
       }
     }
 
-    async function loadEspDeviceUrl() {
-      const storedUrl = espDeviceUrl.trim();
-
-      try {
-        const response = await fetch(ESP_DEVICE_URL_API, { cache: "no-store" });
-        const payload = await response.json().catch(() => null);
-        const nextUrl =
-          payload && typeof payload.url === "string" ? payload.url.trim() : "";
-        const nextLive = Boolean(payload && payload.live);
-
-        setIsEspLive(nextLive);
-
-        if (nextUrl) {
-          const normalizedUrl = nextUrl.replace(/\/+$/, "");
-          setEspDeviceUrl(normalizedUrl);
-          const statusLoaded = await loadEspRuntimeStatus(normalizedUrl);
-          if (!statusLoaded) {
-            setStatusText("ESP32 topildi");
-          }
-          return;
-        }
-
-        if (storedUrl) {
-          const statusLoaded = await loadEspRuntimeStatus(storedUrl);
-          if (statusLoaded) {
-            setStatusText("ESP32 topildi");
-            return;
-          }
-        }
-
-        setStatusText("ESP32 URL hali kelmadi");
-        setReplyText("ESP32 ishga tushgach manzil avtomatik chiqadi");
-      } catch {
-        if (storedUrl) {
-          const statusLoaded = await loadEspRuntimeStatus(storedUrl);
-          if (statusLoaded) {
-            setStatusText("ESP32 topildi");
-            return;
-          }
-        }
-
-        setStatusText("URL olinmadi");
-        setReplyText("Backenddan ESP32 manzili olinmadi");
+    async function refreshEspConnection() {
+      const storedUrl = espDeviceUrl.trim().replace(/\/+$/, "");
+      if (!storedUrl) {
         setIsEspLive(false);
+        setStatusText("ESP32 URL kiriting");
+        setReplyText("Sayt ESP32 bilan to'g'ridan-to'g'ri ishlaydi");
+        setPageAlert("ESP32 URL hali kiritilmagan");
+        return;
       }
+
+      const statusLoaded = await loadEspRuntimeStatus(storedUrl);
+      if (statusLoaded) {
+        setStatusText("ESP32 topildi");
+        setPageAlert("");
+        return;
+      }
+
+      setIsEspLive(false);
+      setStatusText("ESP32 topilmadi");
+      setReplyText("Saqlangan URL bo'yicha qurilmaga ulanib bo'lmadi");
+      setPageAlert("ESP bilan aloqa yo'q: saqlangan URL bo'yicha qurilmaga ulanib bo'lmadi");
     }
 
-    loadEspDeviceUrl();
+    refreshEspConnection();
 
     liveStatusIntervalRef.current = window.setInterval(() => {
-      loadEspDeviceUrl();
+      refreshEspConnection();
     }, 5000);
 
     return () => {
@@ -218,15 +194,36 @@ export default function App() {
     };
   }, [espDeviceUrl]);
 
+  function handleConfigureUrl() {
+    const currentUrl = espDeviceUrl.trim();
+    const nextValue = window.prompt("ESP32 URL kiriting", currentUrl || "http://192.168.1.113");
+    if (nextValue === null) {
+      return;
+    }
+
+    const normalizedUrl = nextValue.trim().replace(/\/+$/, "");
+    if (!normalizedUrl) {
+      setPageAlert("ESP32 URL bo'sh bo'lmasligi kerak");
+      return;
+    }
+
+    setEspDeviceUrl(normalizedUrl);
+    setPageAlert("");
+    setStatusText("ESP32 URL saqlandi");
+    setReplyText(`Yangi manzil: ${normalizedUrl}`);
+  }
+
   useEffect(() => {
     function handleOnline() {
       setIsOnline(true);
+      setPageAlert("");
     }
 
     function handleOffline() {
       setIsOnline(false);
       setStatusText("Internet uzildi");
       setReplyText("Qurilma hozir offline holatda");
+      setPageAlert("Internet uzildi");
     }
 
     window.addEventListener("online", handleOnline);
@@ -340,6 +337,14 @@ export default function App() {
   }
 
   function handleStart() {
+    if (!espDeviceUrl.trim()) {
+      setIsRunning(false);
+      setStatusText("ESP32 URL kiriting");
+      setReplyText("Avval URL tugmasidan qurilma manzilini yozing");
+      setPageAlert("Start uchun avval ESP32 URL kiriting");
+      return;
+    }
+
     if (intervalRef.current) {
       return;
     }
@@ -374,6 +379,9 @@ export default function App() {
     <div className="page-shell">
       {pageAlert ? <div className="page-alert">{pageAlert}</div> : null}
       <div className="top-block">
+        <button type="button" className="url-config-button" onClick={handleConfigureUrl}>
+          url
+        </button>
         <p className="top-line">
           Interval:{" "}
           {INTERVAL_OPTIONS.find((item) => item.value === selectedIntervalMs)
