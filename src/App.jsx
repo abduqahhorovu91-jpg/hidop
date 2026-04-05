@@ -18,6 +18,13 @@ const THEME_OPTIONS = [
   { id: "horor", label: "Horor" },
 ];
 const THEMES = THEME_OPTIONS.map((theme) => theme.id);
+const CATEGORY_TOAST_LABELS = {
+  LANDING: "Home",
+  HOME: "kino",
+  Pleylist: "pleylist",
+  EMPTY: "search",
+  PROFILE: "profil",
+};
 
 function formatDuration(seconds = 0) {
   const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -309,6 +316,7 @@ export default function App() {
   const videoStatusCacheRef = useRef(new Map());
   const topToastTimerRef = useRef(null);
   const soonBadgeTimerRef = useRef(null);
+  const categoryToastReadyRef = useRef(false);
   const refreshIntervalRef = useRef(null);
   const catalogRefreshInFlightRef = useRef(false);
   const selectedTargetUserIdRef = useRef("");
@@ -388,6 +396,14 @@ export default function App() {
 
   useEffect(() => {
     document.body.dataset.category = activeCategory.toLowerCase();
+  }, [activeCategory]);
+
+  useEffect(() => {
+    if (!categoryToastReadyRef.current) {
+      categoryToastReadyRef.current = true;
+      return;
+    }
+    showTopToast(CATEGORY_TOAST_LABELS[activeCategory] || "Tez orada");
   }, [activeCategory]);
 
   useEffect(() => {
@@ -722,6 +738,8 @@ export default function App() {
       text = "📤 Yuborildi.";
     } else if (lower.includes("yoqtirildi")) {
       text = "👍 Yoqtirildi.";
+    } else if (lower.includes("tez orada")) {
+      text = "Tez orada";
     } else if (
       lower.includes("o'chirildi") ||
       lower.includes("ombordan olib tashlandi") ||
@@ -1062,10 +1080,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <div className={`top-toast ${topToastMessage ? "is-visible" : "is-hidden"}`} role="status" aria-live="polite">
-        {topToastMessage || "saqlandi ✅"}
-      </div>
-
       <header className="telegram-bar" style={{ display: showTopBar ? "" : "none" }}>
         <div className="telegram-bar__brand">
           {showCompactTopBar ? null : (
@@ -1410,6 +1424,13 @@ export default function App() {
       </section>
 
       <nav className="bottom-dock" aria-label="Pastki navigatsiya">
+        <div
+          className={`top-toast top-toast--${activeDock} ${topToastMessage ? "is-visible" : "is-hidden"}`}
+          role="status"
+          aria-live="polite"
+        >
+          {topToastMessage || "saqlandi ✅"}
+        </div>
         <button
           className={`bottom-dock__item ${activeDock === "home" ? "is-active" : ""}`}
           type="button"

@@ -66,6 +66,8 @@
   --library-item-bg: rgba(8, 12, 19, 0.62);
   --library-item-hover-bg: rgba(9, 14, 22, 0.8);
   --library-poster-bg: linear-gradient(135deg, rgba(111, 155, 255, 0.2), rgba(119, 241, 207, 0.16)), rgba(12, 18, 28, 0.82);
+  --motion-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-soft: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body[data-theme="sunset"] {
@@ -643,6 +645,7 @@ body[data-category="pleylist"] .library-item__id {
   z-index: 1;
   max-width: 1240px;
   margin: 0 auto;
+  animation: page-enter 720ms var(--motion-spring);
 }
 
 .bottom-dock {
@@ -692,7 +695,11 @@ body[data-category="pleylist"] .library-item__id {
   color: var(--text);
   cursor: pointer;
   overflow: visible;
-  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  transition:
+    transform 240ms var(--motion-spring),
+    background 240ms var(--motion-soft),
+    box-shadow 240ms var(--motion-soft),
+    color 240ms var(--motion-soft);
 }
 
 .bottom-dock__soon {
@@ -713,13 +720,14 @@ body[data-category="pleylist"] .library-item__id {
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: opacity 240ms var(--motion-soft), transform 320ms var(--motion-spring);
   z-index: 9;
 }
 
 .bottom-dock__soon.is-visible {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
+  animation: dock-badge-bob 700ms var(--motion-spring);
 }
 
 .bottom-dock__count {
@@ -771,7 +779,9 @@ body[data-category="pleylist"] .library-item__id {
 }
 
 .bottom-dock__item.is-active {
-  background: transparent;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.08), transparent 58%),
+    transparent;
 }
 
 .bottom-dock__item.is-active::after {
@@ -781,6 +791,10 @@ body[data-category="pleylist"] .library-item__id {
 
 .bottom-dock__item:active {
   transform: scale(0.96);
+}
+
+.bottom-dock__item:hover {
+  transform: translateY(-2px);
 }
 
 .bottom-dock__item--profile.has-photo-avatar {
@@ -1280,6 +1294,7 @@ body[data-category="pleylist"] .library-item__id {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-lg);
   text-align: center;
+  animation: surface-rise 760ms var(--motion-spring) both;
 }
 
 .profile-showcase__menu {
@@ -1431,6 +1446,7 @@ body[data-category="pleylist"] .library-item__id {
     linear-gradient(180deg, var(--brand-surface-1), var(--brand-surface-2));
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-lg);
+  animation: surface-rise 700ms var(--motion-spring) both;
 }
 
 .landing-panel__eyebrow {
@@ -1463,6 +1479,11 @@ body[data-category="pleylist"] .library-item__id {
   background: rgba(12, 18, 29, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-lg);
+  transition:
+    transform 320ms var(--motion-spring),
+    box-shadow 320ms var(--motion-soft),
+    border-color 320ms var(--motion-soft),
+    filter 320ms var(--motion-soft);
 }
 
 .landing-panel__feature-media {
@@ -1478,6 +1499,12 @@ body[data-category="pleylist"] .library-item__id {
 
 .landing-panel__feature.is-clickable {
   cursor: pointer;
+}
+
+.landing-panel__feature:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 44px rgba(0, 0, 0, 0.22);
+  filter: saturate(1.04);
 }
 
 .landing-panel__feature-media.has-video {
@@ -1716,29 +1743,58 @@ body[data-category="pleylist"] .library-item__id {
 }
 
 .top-toast {
-  position: fixed;
-  left: 50%;
-  top: calc(max(18px, env(safe-area-inset-top)) + 88px);
+  position: absolute;
+  bottom: calc(100% + 14px);
   z-index: 80;
-  width: min(calc(100vw - 28px), 460px);
-  padding: 13px 16px;
-  border-radius: 20px;
-  background: rgba(12, 20, 30, 0.96);
-  border: 1px solid rgba(119, 241, 207, 0.14);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.4;
-  transform: translate(-50%, -10px);
+  width: fit-content;
+  max-width: min(calc(100vw - 36px), 420px);
+  padding: 14px 28px;
+  border-radius: 24px;
+  background: rgba(11, 16, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 18px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #f7f7f8;
+  font-family: var(--font-display);
+  font-size: clamp(18px, 4vw, 26px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-align: center;
+  white-space: nowrap;
+  left: 50%;
+  transform: translate(-50%, 10px) scale(0.92);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: opacity 260ms var(--motion-soft), transform 320ms var(--motion-spring);
+  will-change: transform, opacity;
+}
+
+.top-toast--home {
+  left: 8.333%;
+}
+
+.top-toast--playlist {
+  left: 41.667%;
+}
+
+.top-toast--saved {
+  left: 58.333%;
+}
+
+.top-toast--empty {
+  left: 75%;
+}
+
+.top-toast--profile {
+  left: 91.667%;
 }
 
 .top-toast.is-visible {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, 0) scale(1);
+  animation: dock-badge-bob 700ms var(--motion-spring);
 }
 
 .telegram-bar {
@@ -1760,6 +1816,7 @@ body[data-category="pleylist"] .library-item__id {
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(22px);
+  animation: surface-rise 620ms var(--motion-spring) both;
 }
 
 .telegram-bar__theme {
@@ -2534,8 +2591,12 @@ body.search-open .quick-filters {
   transform: none;
   opacity: 1;
   animation: none;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 320ms var(--motion-spring),
+    box-shadow 320ms var(--motion-soft),
+    filter 320ms var(--motion-soft);
   cursor: pointer;
+  animation: card-in 760ms var(--motion-spring) both;
 }
 
 .card::after {
@@ -2543,8 +2604,9 @@ body.search-open .quick-filters {
 }
 
 .card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 22px 42px rgba(0, 0, 0, 0.24);
+  filter: saturate(1.04);
 }
 
 .card__frame {
@@ -2596,17 +2658,25 @@ body.search-open .quick-filters {
   filter: saturate(1.02) brightness(0.9) contrast(1.04);
   transform: scale(1.02);
   z-index: 1;
+  transition: transform 560ms var(--motion-spring), filter 360ms var(--motion-soft);
 }
 
 .thumb video {
   object-fit: cover;
   opacity: 0;
   z-index: 2;
-  transition: opacity 180ms ease;
+  transition: opacity 240ms var(--motion-soft), transform 420ms var(--motion-spring);
 }
 
 .thumb video[data-ready="true"] {
   opacity: 0.98;
+  transform: scale(1.02);
+}
+
+.card:hover .thumb__poster,
+.library-item:hover .library-item__poster {
+  transform: scale(1.06);
+  filter: saturate(1.08) brightness(0.95) contrast(1.06);
 }
 
 .thumb::after {
@@ -2939,8 +3009,13 @@ body.search-open .quick-filters {
   border-radius: 24px;
   background: var(--library-item-bg);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  transition:
+    transform 300ms var(--motion-spring),
+    border-color 240ms var(--motion-soft),
+    background 240ms var(--motion-soft),
+    box-shadow 300ms var(--motion-soft);
   cursor: pointer;
+  animation: surface-rise 820ms var(--motion-spring) both;
 }
 
 .library-item__poster {
@@ -2963,9 +3038,10 @@ body.search-open .quick-filters {
 }
 
 .library-item:hover {
-  transform: translateY(-2px);
+  transform: translateY(-4px);
   border-color: rgba(119, 241, 207, 0.2);
   background: var(--library-item-hover-bg);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.22);
 }
 
 .library-item__id {
@@ -3053,6 +3129,7 @@ body.search-open .quick-filters {
     linear-gradient(180deg, rgba(12, 18, 28, 0.98), rgba(7, 10, 16, 0.96));
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-xl);
+  animation: modal-pop 360ms var(--motion-spring) both;
 }
 
 .video-modal__header {
@@ -3206,9 +3283,64 @@ body.search-open .quick-filters {
 }
 
 @keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dock-badge-bob {
+  0% {
+    transform: translate(-50%, 10px) scale(0.9);
+  }
+
+  60% {
+    transform: translate(-50%, -2px) scale(1.02);
+  }
+
+  100% {
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -3366,9 +3498,16 @@ body.search-open .quick-filters {
   }
 
   .top-toast {
-    top: calc(max(16px, env(safe-area-inset-top)) + 94px);
-    width: calc(100vw - 16px);
+    width: fit-content;
+    max-width: calc(100vw - 20px);
     border-radius: 18px;
+    padding: 12px 22px;
+    font-size: clamp(16px, 5vw, 22px);
+    transform: translate(-50%, 10px) scale(0.92);
+  }
+
+  .top-toast.is-visible {
+    transform: translate(-50%, 0) scale(1);
   }
 
   .telegram-bar__brand {
