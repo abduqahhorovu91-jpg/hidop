@@ -5,7 +5,6 @@ import asyncio
 import ssl
 import shutil
 import threading
-import time
 import urllib.request as urllib_request
 import unicodedata
 from datetime import datetime
@@ -187,25 +186,6 @@ def db_save_video_catalog(data):
         logger.warning(f"Error saving video catalog: {e}")
 
 
-def db_load_esp_device_state():
-    try:
-        if ESP_DEVICE_FILE.exists():
-            with open(ESP_DEVICE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-    except Exception as exc:
-        logging.getLogger(__name__).warning("Error loading esp device state: %s", exc)
-        return {}
-
-
-def db_save_esp_device_state(data):
-    try:
-        with open(ESP_DEVICE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as exc:
-        logger.warning("Error saving esp device state: %s", exc)
-
-
 def load_rels_items() -> list[dict[str, object]]:
     try:
         if not RELS_FILE.exists():
@@ -292,14 +272,10 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-ESP_REPLY_VARIANTS = ["✅ ✅ ✅ ✅", "🔥🔥🔥🔥", "🚀🚀🚀🚀"]
-ESP_REPLY_INDEX = 0
-ESP_REPLY_LOCK = threading.Lock()
-ESP32_TIMEOUT_SECONDS = max(30, int(os.getenv("ESP32_TIMEOUT_SECONDS", "120") or "120"))
-ESP32_CHECK_INTERVAL_SECONDS = max(10, int(os.getenv("ESP32_CHECK_INTERVAL_SECONDS", "30") or "30"))
-ESP32_LAST_REQUEST_MONOTONIC = time.monotonic()
-ESP32_ALERT_SENT = False
-ESP32_STATUS_LOCK = threading.Lock()
+ESP_START_MESSAGE = "race.x299_299_1"
+ESP_STOP_MESSAGE = "race.x299_299_2"
+ESP_ACTIVE_MESSAGE = "esp activet"
+ESP_REPLY_VARIANTS = ["qabul qilindi", "bog'landi", "ishlayapti"]
 SHARE_BOT_URL = "https://t.me/Hidop_bot"
 SHARE_TEXT = "Hidop botni sinab ko'ring"
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
@@ -326,8 +302,6 @@ USER_REACTIONS_FILE = data_file("user_reactions.json")
 USER_REACTIONS: dict[int, dict[int, str]] = {}
 MONTHLY_REACTIONS_FILE = data_file("monthly_reactions.json")
 MONTHLY_REACTIONS: dict[str, dict[str, dict[str, int]]] = {}
-ESP_DEVICE_FILE = data_file("esp_device.json")
-ESP_DEVICE_STATE: dict[str, str] = {"url": "", "updated_at": ""}
 # Search optimization constants
 SEARCH_CACHE: dict[str, list[dict]] = {}
 SEARCH_CACHE_MAX_SIZE = 200  # Increased cache size
@@ -357,26 +331,6 @@ def normalize_webapp_url(raw_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         return CANONICAL_WEBAPP_URL
     return candidate
-
-
-def load_esp_device_state() -> None:
-    raw = db_load_esp_device_state()
-    if isinstance(raw, dict):
-        ESP_DEVICE_STATE["url"] = str(raw.get("url", "") or "").strip()
-        ESP_DEVICE_STATE["updated_at"] = str(raw.get("updated_at", "") or "").strip()
-    else:
-        ESP_DEVICE_STATE["url"] = ""
-        ESP_DEVICE_STATE["updated_at"] = ""
-
-
-def save_esp_device_state() -> None:
-    db_save_esp_device_state(
-        {
-            "url": str(ESP_DEVICE_STATE.get("url", "") or "").strip(),
-            "updated_at": str(ESP_DEVICE_STATE.get("updated_at", "") or "").strip(),
-        }
-    )
-
 
 WEBAPP_URL = normalize_webapp_url(os.getenv("WEBAPP_URL", CANONICAL_WEBAPP_URL))
 SMS_SELECT_MODE_KEY = "sms_select_mode"
@@ -820,29 +774,6 @@ def get_video_by_number(number: int) -> dict | None:
         if isinstance(item, dict) and item.get("id") == number:
             return item
     return None
-
-
-def parse_esp_bulk_video_message(message: str) -> tuple[int, int, int] | None:
-    parts = [part.strip() for part in str(message or "").split("_")]
-    if len(parts) != 4 or parts[0] != "race.x299":
-        return None
-
-    raw_target_user_id, raw_video_id, raw_repeat_count = parts[1:]
-    if not (
-        raw_target_user_id.isdigit()
-        and raw_video_id.isdigit()
-        and raw_repeat_count.isdigit()
-    ):
-        return None
-
-    target_user_id = int(raw_target_user_id)
-    video_id = int(raw_video_id)
-    repeat_count = int(raw_repeat_count)
-
-    if target_user_id < 1 or video_id < 1 or repeat_count < 1:
-        return None
-
-    return target_user_id, video_id, repeat_count
 
 
 def normalize_text(text: str) -> str:
@@ -1421,36 +1352,6 @@ def healthcheck():
     return jsonify({"ok": True})
 
 
-def mark_esp32_request_received() -> None:
-    global ESP32_LAST_REQUEST_MONOTONIC, ESP32_ALERT_SENT
-    with ESP32_STATUS_LOCK:
-        ESP32_LAST_REQUEST_MONOTONIC = time.monotonic()
-        ESP32_ALERT_SENT = False
-
-
-async def monitor_esp32_health(context: ContextTypes.DEFAULT_TYPE) -> None:
-    global ESP32_ALERT_SENT
-    admin_id = get_admin_id() or VIDEO_ADMIN_ID
-    if admin_id is None:
-        return
-
-    with ESP32_STATUS_LOCK:
-        seconds_since_last_request = time.monotonic() - ESP32_LAST_REQUEST_MONOTONIC
-        should_alert = seconds_since_last_request >= ESP32_TIMEOUT_SECONDS and not ESP32_ALERT_SENT
-        if should_alert:
-            ESP32_ALERT_SENT = True
-
-    if not should_alert:
-        return
-
-    logger.warning("ESP32 requestlari to'xtadi: %.1f soniya", seconds_since_last_request)
-    try:
-        await context.bot.send_message(chat_id=admin_id, text="🧐")
-        await context.bot.send_message(chat_id=admin_id, text="esp 32 ishlamayapti ❌")
-    except Exception as exc:
-        logger.warning("ESP32 holati haqida adminga yozib bo'lmadi: %s", exc)
-
-
 @web_app.route("/", methods=["GET", "POST"])
 def serve_index():
     if request.method == "POST":
@@ -1474,132 +1375,78 @@ def serve_index():
 
 @web_app.route("/api/esp-message", methods=["POST"])
 def receive_esp_message():
-    global ESP_REPLY_INDEX
-    mark_esp32_request_received()
-    payload = request.get_json(silent=True)
-    message = ""
-
-    if isinstance(payload, dict):
-        message = str(payload.get("message", "") or "").strip()
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "") or "").strip()
 
     if not message:
         message = str(request.form.get("message", "") or "").strip()
-
     if not message:
         message = request.get_data(as_text=True).strip()
 
-    logger.info("ESP frontend xabar yubordi: %s", message or "<empty>")
+    interval_ms = parse_int(payload.get("intervalMs"))
+    device_url = str(payload.get("deviceUrl", "") or "").strip()
 
-    if message == "race.x299_299_1":
-        with ESP_REPLY_LOCK:
-            reply = ESP_REPLY_VARIANTS[ESP_REPLY_INDEX]
-            ESP_REPLY_INDEX = (ESP_REPLY_INDEX + 1) % len(ESP_REPLY_VARIANTS)
+    logger.info(
+        "ESP xabar qabul qilindi: message=%s interval=%s device_url=%s",
+        message or "<empty>",
+        interval_ms,
+        device_url or "<empty>",
+    )
+
+    if message == ESP_ACTIVE_MESSAGE:
+        admin_id = get_admin_id() or VIDEO_ADMIN_ID
+        token = get_bot_token()
+        if admin_id and token:
+            try:
+                async def _notify() -> None:
+                    bot = Bot(token=token)
+                    suffix = f"\n{device_url}" if device_url else ""
+                    await bot.send_message(chat_id=admin_id, text=f"esp activet{suffix}")
+                    await bot.close()
+
+                asyncio.run(_notify())
+            except Exception as exc:
+                logger.warning("ESP active xabarini adminga yuborib bo'lmadi: %s", exc)
+
         return jsonify(
             {
                 "ok": True,
                 "accepted": True,
                 "message": message,
-                "reply": reply,
+                "reply": "esp active qabul qilindi",
             }
         )
 
-    if message == "race.x299_299_2":
+    if message == ESP_START_MESSAGE:
+        suffix = f" ({interval_ms} ms)" if interval_ms else ""
         return jsonify(
             {
                 "ok": True,
                 "accepted": True,
                 "message": message,
-                "reply": "stop",
+                "reply": f"start qabul qilindi{suffix}",
             }
         )
 
-    bulk_video_request = parse_esp_bulk_video_message(message)
-    if bulk_video_request is not None:
-        target_user_id, video_id, repeat_count = bulk_video_request
-        try:
-            asyncio.run(send_video_to_user_multiple(target_user_id, video_id, repeat_count))
-            return jsonify(
-                {
-                    "ok": True,
-                    "accepted": True,
-                    "message": message,
-                    "reply": f"{video_id} kodli kino {repeat_count} marta yuborildi",
-                }
-            )
-        except BadRequest as exc:
-            error_text = str(exc).lower()
-            if "chat not found" in error_text:
-                reply = "User botga /start yubormagan"
-            elif "bot was blocked by the user" in error_text:
-                reply = "User botni bloklagan"
-            elif "user is deactivated" in error_text:
-                reply = "User akkaunti faol emas"
-            else:
-                reply = "Telegram video yuborishni rad etdi"
-            logger.warning(
-                "ESP bulk video yuborilmadi (%s -> %s x%s): %s",
-                video_id,
-                target_user_id,
-                repeat_count,
-                exc,
-            )
-            return jsonify(
-                {
-                    "ok": False,
-                    "accepted": False,
-                    "message": message,
-                    "reply": reply,
-                }
-            ), 400
-        except Exception as exc:
-            logger.exception(
-                "ESP bulk video xatoligi (%s -> %s x%s): %s",
-                video_id,
-                target_user_id,
-                repeat_count,
-                exc,
-            )
-            return jsonify(
-                {
-                    "ok": False,
-                    "accepted": False,
-                    "message": message,
-                    "reply": "Kino yuborishda xatolik bo'ldi",
-                }
-            ), 500
-
-    return jsonify({"ok": True, "accepted": True, "message": message})
-
-
-@web_app.route("/api/esp-device-url", methods=["GET", "POST"])
-def esp_device_url():
-    if request.method == "GET":
-        seconds_since_last_request = time.monotonic() - ESP32_LAST_REQUEST_MONOTONIC
+    if message == ESP_STOP_MESSAGE:
         return jsonify(
             {
                 "ok": True,
-                "url": str(ESP_DEVICE_STATE.get("url", "") or "").strip(),
-                "updated_at": str(ESP_DEVICE_STATE.get("updated_at", "") or "").strip(),
-                "live": seconds_since_last_request < ESP32_TIMEOUT_SECONDS,
-                "seconds_since_last_request": round(seconds_since_last_request, 1),
+                "accepted": True,
+                "message": message,
+                "reply": "stop qabul qilindi",
             }
         )
 
-    payload = request.get_json(silent=True) or {}
-    device_url = str(payload.get("url", "") or "").strip().rstrip("/")
-    if not device_url:
-        device_url = str(request.form.get("url", "") or "").strip().rstrip("/")
-    if not device_url:
-        device_url = request.get_data(as_text=True).strip().rstrip("/")
-
-    if not device_url:
-        return jsonify({"ok": False, "error": "url topilmadi"}), 400
-
-    ESP_DEVICE_STATE["url"] = device_url
-    ESP_DEVICE_STATE["updated_at"] = datetime.now().isoformat(timespec="seconds")
-    save_esp_device_state()
-    logger.info("ESP32 url yangilandi: %s", device_url)
-    return jsonify({"ok": True, "url": device_url, "updated_at": ESP_DEVICE_STATE["updated_at"]})
+    variant_index = (len(message) + (interval_ms or 0)) % len(ESP_REPLY_VARIANTS)
+    return jsonify(
+        {
+            "ok": True,
+            "accepted": True,
+            "message": message,
+            "reply": ESP_REPLY_VARIANTS[variant_index],
+        }
+    )
 
 
 @web_app.route("/<path:filename>")
@@ -5907,13 +5754,6 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def on_startup(app: Application) -> None:
     bootstrap_runtime_state()
     await app.bot.delete_webhook(drop_pending_updates=False)
-    if app.job_queue is not None:
-        app.job_queue.run_repeating(
-            monitor_esp32_health,
-            interval=ESP32_CHECK_INTERVAL_SECONDS,
-            first=ESP32_CHECK_INTERVAL_SECONDS,
-            name="esp32-health-monitor",
-        )
     me = await app.bot.get_me()
     logger.info("Bot ishga tushdi: @%s", me.username)
     print(f"✅ Bot ishga tushdi: @{me.username}")
@@ -5955,7 +5795,6 @@ def bootstrap_runtime_state() -> None:
     load_video_reactions()
     load_monthly_reactions()
     load_video_uploaders()
-    load_esp_device_state()
     build_search_index()
 
     users_updated, videos_removed = cleanup_orphaned_saved_videos()
