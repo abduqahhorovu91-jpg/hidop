@@ -1,32 +1,222 @@
 import { useEffect, useRef, useState } from "react";
 
-const TARGET_URL = "https://hidop.onrender.com/api/esp-message";
+const ESP_DEVICE_URL_API = "/api/esp-device-url";
+const ESP_COMMAND_PATH = "/command";
+const ESP_STATUS_PATH = "/status";
+const ESP_STATE_STORAGE_KEY = "hidop-esp-runtime-state";
 const START_MESSAGE = "race.x299_299_1";
 const STOP_MESSAGE = "race.x299_299_2";
 const REQUEST_TIMEOUT_MS = 15_000;
-const ALERT_BOT_TOKEN = "8704209013:AAEbRNh1ofyyaPGaXc5HzUCXOKhSQHeoMcw";
-const ALERT_CHAT_ID = "8239140931";
-const ALERT_TEXT = "❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌";
 const INTERVAL_OPTIONS = [
   { label: "10 sekund", value: 10_000 },
   { label: "30 sekund", value: 30_000 },
   { label: "1 daqiqa", value: 60_000 },
 ];
 
+function decodeReplyText(value) {
+  const text = String(value || "");
+  if (!text.includes("\\u")) {
+    return text;
+  }
+
+  try {
+    return JSON.parse(`"${text.replace(/"/g, '\\"')}"`);
+  } catch {
+    return text;
+  }
+}
+
 export default function App() {
   const intervalRef = useRef(null);
-  const isSendingAlertRef = useRef(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [sendCount, setSendCount] = useState(0);
-  const [statusText, setStatusText] = useState("Tayyor");
-  const [replyText, setReplyText] = useState("");
-  const [selectedIntervalMs, setSelectedIntervalMs] = useState(
-    INTERVAL_OPTIONS[0].value,
-  );
+  const liveStatusIntervalRef = useRef(null);
+  const [espDeviceUrl, setEspDeviceUrl] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return String(parsed.espDeviceUrl || "").trim();
+    } catch {
+      return "";
+    }
+  });
+  const [isEspLive, setIsEspLive] = useState(false);
+  const [isRunning, setIsRunning] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return Boolean(parsed.isRunning);
+    } catch {
+      return false;
+    }
+  });
+  const [sendCount, setSendCount] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return Number(parsed.sendCount) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [statusText, setStatusText] = useState(() => {
+    if (typeof window === "undefined") return "Tayyor";
+    try {
+      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return String(parsed.statusText || "Tayyor");
+    } catch {
+      return "Tayyor";
+    }
+  });
+  const [replyText, setReplyText] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return String(parsed.replyText || "");
+    } catch {
+      return "";
+    }
+  });
+  const [selectedIntervalMs, setSelectedIntervalMs] = useState(() => {
+    if (typeof window === "undefined") return INTERVAL_OPTIONS[0].value;
+    try {
+      const raw = window.localStorage.getItem(ESP_STATE_STORAGE_KEY) || "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      const nextValue = Number(parsed.selectedIntervalMs);
+      return Number.isFinite(nextValue) && nextValue >= 1000
+        ? nextValue
+        : INTERVAL_OPTIONS[0].value;
+    } catch {
+      return INTERVAL_OPTIONS[0].value;
+    }
+  });
   const [isStopConfirming, setIsStopConfirming] = useState(false);
   const [isOnline, setIsOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
+  const [pageAlert, setPageAlert] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      ESP_STATE_STORAGE_KEY,
+      JSON.stringify({
+        espDeviceUrl,
+        isRunning,
+        sendCount,
+        statusText,
+        replyText,
+        selectedIntervalMs,
+      }),
+    );
+  }, [espDeviceUrl, isRunning, sendCount, statusText, replyText, selectedIntervalMs]);
+
+  useEffect(() => {
+    async function loadEspRuntimeStatus(deviceUrl) {
+      if (!deviceUrl) {
+        return false;
+      }
+
+      try {
+        const response = await fetch(`${deviceUrl}${ESP_STATUS_PATH}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload) {
+          return false;
+        }
+
+        const nextIntervalMs = Number(payload.intervalMs);
+        if (Number.isFinite(nextIntervalMs) && nextIntervalMs >= 1000) {
+          setSelectedIntervalMs(nextIntervalMs);
+        }
+
+        setIsRunning(Boolean(payload.running));
+        setSendCount(Number(payload.sendCount) || 0);
+
+        const nextStatus = String(payload.lastStatus || "").trim();
+        const nextReply = String(payload.lastReply || "").trim();
+
+        if (nextStatus) {
+          setStatusText(nextStatus === "running" ? "Ishga tushgan" : nextStatus);
+        }
+
+        if (nextReply) {
+          setReplyText(decodeReplyText(nextReply));
+        }
+        return true;
+      } catch {
+        // ESP32 statusini o'qib bo'lmasa, mavjud UI holatini saqlab qolamiz.
+        return false;
+      }
+    }
+
+    async function loadEspDeviceUrl() {
+      const storedUrl = espDeviceUrl.trim();
+
+      try {
+        const response = await fetch(ESP_DEVICE_URL_API, { cache: "no-store" });
+        const payload = await response.json().catch(() => null);
+        const nextUrl =
+          payload && typeof payload.url === "string" ? payload.url.trim() : "";
+        const nextLive = Boolean(payload && payload.live);
+
+        setIsEspLive(nextLive);
+
+        if (nextUrl) {
+          const normalizedUrl = nextUrl.replace(/\/+$/, "");
+          setEspDeviceUrl(normalizedUrl);
+          const statusLoaded = await loadEspRuntimeStatus(normalizedUrl);
+          if (!statusLoaded) {
+            setStatusText("ESP32 topildi");
+          }
+          return;
+        }
+
+        if (storedUrl) {
+          const statusLoaded = await loadEspRuntimeStatus(storedUrl);
+          if (statusLoaded) {
+            setStatusText("ESP32 topildi");
+            return;
+          }
+        }
+
+        setStatusText("ESP32 URL hali kelmadi");
+        setReplyText("ESP32 ishga tushgach manzil avtomatik chiqadi");
+      } catch {
+        if (storedUrl) {
+          const statusLoaded = await loadEspRuntimeStatus(storedUrl);
+          if (statusLoaded) {
+            setStatusText("ESP32 topildi");
+            return;
+          }
+        }
+
+        setStatusText("URL olinmadi");
+        setReplyText("Backenddan ESP32 manzili olinmadi");
+        setIsEspLive(false);
+      }
+    }
+
+    loadEspDeviceUrl();
+
+    liveStatusIntervalRef.current = window.setInterval(() => {
+      loadEspDeviceUrl();
+    }, 5000);
+
+    return () => {
+      if (liveStatusIntervalRef.current) {
+        window.clearInterval(liveStatusIntervalRef.current);
+        liveStatusIntervalRef.current = null;
+      }
+    };
+  }, [espDeviceUrl]);
 
   useEffect(() => {
     function handleOnline() {
@@ -72,39 +262,14 @@ export default function App() {
     };
   }, [isRunning, selectedIntervalMs]);
 
-  async function sendFailureAlertBatch() {
-    if (isSendingAlertRef.current) {
-      return;
-    }
-
-    isSendingAlertRef.current = true;
-
-    try {
-      for (let index = 0; index < 3; index += 1) {
-        await fetch(`https://api.telegram.org/bot${ALERT_BOT_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            chat_id: ALERT_CHAT_ID,
-            text: ALERT_TEXT,
-          }),
-        }).catch(() => null);
-      }
-    } finally {
-      isSendingAlertRef.current = false;
-    }
-  }
-
-  async function sendMessage(message) {
+  async function postToEsp(path, requestPayload) {
     if (!isOnline) {
-      setStatusText("Yuborilmadi: offline");
-      setReplyText("Internet ulanmagani uchun yuborilmadi");
-      return;
+      throw new Error("Internet ulanmagani uchun yuborilmadi");
     }
 
-    setStatusText("Yuborilyapti...");
+    if (!espDeviceUrl) {
+      throw new Error("ESP32 ulanmagan");
+    }
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
@@ -112,55 +277,65 @@ export default function App() {
     }, REQUEST_TIMEOUT_MS);
 
     try {
-      const response = await fetch(TARGET_URL, {
+      const response = await fetch(`${espDeviceUrl}${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         signal: controller.signal,
-        body: JSON.stringify({
-          message,
-        }),
+        body: JSON.stringify(requestPayload),
       });
 
-      const payload = await response.json().catch(() => null);
+      const responsePayload = await response.json().catch(() => null);
 
       if (!response.ok) {
         const replyMessage =
-          payload && typeof payload.reply === "string" && payload.reply.trim()
-            ? payload.reply
+          responsePayload &&
+          typeof responsePayload.reply === "string" &&
+          responsePayload.reply.trim()
+            ? responsePayload.reply
             : `HTTP ${response.status}`;
         throw new Error(replyMessage);
       }
 
-      setSendCount((current) => current + 1);
-      setStatusText("Yuborildi");
-      setReplyText(
-        payload && typeof payload.reply === "string" && payload.reply.trim()
-          ? payload.reply
-          : "",
-      );
+      return responsePayload;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Noma'lum xatolik";
-      const shouldAlert =
-        error instanceof DOMException && error.name === "AbortError"
-          ? true
-          : /failed to fetch|networkerror|load failed/i.test(errorMessage);
-
-      if (shouldAlert) {
-        void sendFailureAlertBatch();
-      }
 
       const visibleMessage =
         error instanceof DOMException && error.name === "AbortError"
           ? "Server javob bermadi"
           : errorMessage;
-
-      setStatusText(`Yuborilmadi: ${visibleMessage}`);
-      setReplyText(visibleMessage);
+      throw new Error(visibleMessage);
     } finally {
       window.clearTimeout(timeoutId);
+    }
+  }
+
+  async function sendMessage(message) {
+    setStatusText("Yuborilyapti...");
+    setPageAlert("");
+
+    try {
+      const payload = await postToEsp(ESP_COMMAND_PATH, {
+        message,
+        intervalMs: selectedIntervalMs,
+      });
+
+      setSendCount((current) => current + 1);
+      setStatusText("Yuborildi");
+      setReplyText(
+        payload && typeof payload.reply === "string" && payload.reply.trim()
+          ? decodeReplyText(payload.reply)
+          : "ESP32 ga yuborildi",
+      );
+    } catch (error) {
+      const visibleMessage =
+        error instanceof Error ? error.message : "Noma'lum xatolik";
+      setStatusText(`Yuborilmadi: ${visibleMessage}`);
+      setReplyText(visibleMessage);
+      setPageAlert(`ESP bilan aloqa yo'q: ${visibleMessage}`);
     }
   }
 
@@ -197,17 +372,16 @@ export default function App() {
 
   return (
     <div className="page-shell">
+      {pageAlert ? <div className="page-alert">{pageAlert}</div> : null}
       <div className="top-block">
-        <p className="top-line">Holat: {isRunning ? "aktiv" : "to'xtagan"}</p>
-        <p className="top-line">
-          Internet: {isOnline ? "online" : "offline"}
-        </p>
         <p className="top-line">
           Interval:{" "}
           {INTERVAL_OPTIONS.find((item) => item.value === selectedIntervalMs)
             ?.label || "10 sekund"}
         </p>
         <p className="top-line">Yuborilgan: {sendCount} marta</p>
+        <p className="top-line top-line-url">{espDeviceUrl || "ESP32 URL kutilmoqda..."}</p>
+        {isEspLive ? <p className="top-live">live...</p> : null}
         <p className="top-status">{statusText}</p>
         {replyText ? <p className="top-reply">{replyText}</p> : null}
       </div>
