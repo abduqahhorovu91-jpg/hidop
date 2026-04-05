@@ -712,8 +712,8 @@ async def finalize_uploaded_video(
     user_id: int,
     context: ContextTypes.DEFAULT_TYPE,
     state: dict[str, object],
-    photo_url: str,
-    trailer_url: str,
+    photo_url: str = "",
+    trailer_url: str = "",
 ) -> None:
     title = str(state.get("title", "")).strip()
     file_id = str(state.get("file_id", "")).strip()
@@ -722,7 +722,7 @@ async def finalize_uploaded_video(
     file_size = int(state.get("file_size", 0))
     custom_id = state.get("custom_id")
 
-    if not title or not file_id or not photo_url.strip() or not trailer_url.strip():
+    if not title or not file_id:
         context.user_data.pop(UPLOAD_VIDEO_STATE_KEY, None)
         await context.bot.send_message(chat_id=user_id, text="Xatolik. Qaytadan video yuklang.")
         return
@@ -763,8 +763,6 @@ async def finalize_uploaded_video(
     ]
     if comment:
         success_lines.append(f"Comment: {comment}")
-    success_lines.append("Rasm: saqlandi ✅")
-    success_lines.append("Treyler: saqlandi 🎬")
     await context.bot.send_message(chat_id=user_id, text="\n".join(success_lines))
 
 
@@ -3005,10 +3003,10 @@ async def on_upload_video_comment_choice(
     
     if query.data == "upload_video_comment_no":
         state["comment"] = ""
-        state["stage"] = "await_photo"
-        await context.bot.send_message(
-            chat_id=query.from_user.id,
-            text=t(context, "upload_video_photo_prompt"),
+        await finalize_uploaded_video(
+            user_id=query.from_user.id,
+            context=context,
+            state=state,
         )
         return
 
@@ -5461,9 +5459,12 @@ async def handle_upload_video_name(
     if stage == "await_comment":
         comment = normalize_query(message.text)
         state["comment"] = comment
-        state["stage"] = "await_photo"
         await message.reply_text(t(context, "upload_video_comment_added"))
-        await message.reply_text(t(context, "upload_video_photo_prompt"))
+        await finalize_uploaded_video(
+            user_id=update.effective_user.id,
+            context=context,
+            state=state,
+        )
         return True
 
     if stage == "await_custom_id":
