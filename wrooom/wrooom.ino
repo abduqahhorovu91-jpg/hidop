@@ -6,10 +6,10 @@
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
-const char* DEVICE_URL_ENDPOINT = "https://esp-esp-esp.onrender.com/api/device-url";
-const char* DEVICE_STATE_ENDPOINT = "https://esp-esp-esp.onrender.com/api/device-state";
-const char* DEVICE_COMMAND_ENDPOINT = "https://esp-esp-esp.onrender.com/api/device-command";
-const char* RENDER_KEEPALIVE_ENDPOINT = "https://esp-esp-esp.onrender.com";
+const char* DEVICE_URL_ENDPOINT = "https://esp-esp-esp32.onrender.com/api/device-url";
+const char* DEVICE_STATE_ENDPOINT = "https://esp-esp-esp32.onrender.com/api/device-state";
+const char* DEVICE_COMMAND_ENDPOINT = "https://esp-esp-esp32.onrender.com/api/device-command";
+const char* RENDER_KEEPALIVE_ENDPOINT = "https://esp-esp-esp32.onrender.com";
 const char* BOT_ENDPOINT = "https://hidop.onrender.com/api/esp-message";
 const char* BOT_STATUS_ENDPOINT = "https://hidop.onrender.com/api/esp-status";
 

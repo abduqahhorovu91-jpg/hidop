@@ -308,8 +308,9 @@ SEARCH_CACHE: dict[str, list[dict]] = {}
 SEARCH_CACHE_MAX_SIZE = 200  # Increased cache size
 TITLE_INDEX: dict[str, list[dict]] = {}  # Pre-built index for first letters
 RUNTIME_BOOTSTRAPPED = False
-ESP_INACTIVITY_TIMEOUT_SECONDS = 20
+ESP_INACTIVITY_TIMEOUT_SECONDS = 60
 ESP_MONITOR_POLL_INTERVAL_SECONDS = 5
+ESP_LAST_INTERVAL_MS = 10000
 ESP_MONITOR_LOCK = threading.Lock()
 ESP_LAST_MESSAGE_TS = 0.0
 ESP_DEACTIVE_NOTIFIED = False
@@ -1380,13 +1381,15 @@ def send_esp_admin_notice(text: str, device_url: str = "") -> None:
         logger.warning("ESP admin xabarini yuborib bo'lmadi: %s", exc)
 
 
-def mark_esp_message_activity(device_url: str = "") -> None:
-    global ESP_LAST_MESSAGE_TS, ESP_DEACTIVE_NOTIFIED, ESP_LAST_DEVICE_URL, ESP_RUNTIME_STATUS
+def mark_esp_message_activity(device_url: str = "", interval_ms: int | None = None) -> None:
+    global ESP_LAST_MESSAGE_TS, ESP_DEACTIVE_NOTIFIED, ESP_LAST_DEVICE_URL, ESP_RUNTIME_STATUS, ESP_LAST_INTERVAL_MS
 
     with ESP_MONITOR_LOCK:
         ESP_LAST_MESSAGE_TS = time.time()
         ESP_DEACTIVE_NOTIFIED = False
         ESP_RUNTIME_STATUS = "active"
+        if interval_ms and interval_ms >= 1000:
+            ESP_LAST_INTERVAL_MS = interval_ms
         if device_url:
             ESP_LAST_DEVICE_URL = device_url
 
@@ -1400,7 +1403,8 @@ def monitor_esp_inactivity() -> None:
 
         with ESP_MONITOR_LOCK:
             has_activity = ESP_LAST_MESSAGE_TS > 0
-            is_stale = has_activity and (time.time() - ESP_LAST_MESSAGE_TS) > ESP_INACTIVITY_TIMEOUT_SECONDS
+            timeout_seconds = max(ESP_INACTIVITY_TIMEOUT_SECONDS, int((ESP_LAST_INTERVAL_MS * 4) / 1000))
+            is_stale = has_activity and (time.time() - ESP_LAST_MESSAGE_TS) > timeout_seconds
             if is_stale and not ESP_DEACTIVE_NOTIFIED:
                 ESP_DEACTIVE_NOTIFIED = True
                 ESP_RUNTIME_STATUS = "deactive"
@@ -1474,7 +1478,7 @@ def receive_esp_message():
         interval_ms,
         device_url or "<empty>",
     )
-    mark_esp_message_activity(device_url)
+    mark_esp_message_activity(device_url, interval_ms)
 
     if message == ESP_ACTIVE_MESSAGE:
         set_esp_runtime_feedback("active", "esp active qabul qilindi")
@@ -1501,7 +1505,7 @@ def receive_esp_message():
         )
 
     if message == ESP_STOP_MESSAGE:
-        set_esp_runtime_feedback("deactive", "stop qabul qilindi")
+        set_esp_runtime_feedback("noactive", "stop qabul qilindi")
         return jsonify(
             {
                 "ok": True,
@@ -1529,6 +1533,7 @@ def get_esp_status():
         status = ESP_RUNTIME_STATUS
         reply = ESP_RUNTIME_REPLY
         last_seen = ESP_LAST_MESSAGE_TS
+        timeout_seconds = max(ESP_INACTIVITY_TIMEOUT_SECONDS, int((ESP_LAST_INTERVAL_MS * 4) / 1000))
 
     return jsonify(
         {
@@ -1536,6 +1541,7 @@ def get_esp_status():
             "status": status,
             "reply": reply,
             "last_seen": last_seen,
+            "timeout_seconds": timeout_seconds,
         }
     )
 
