@@ -6,8 +6,9 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python3 bot.py
 
-  - type: static
+  - type: web
     name: hidop-esp
+    runtime: python
     rootDir: esp
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 server.py
