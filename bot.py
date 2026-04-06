@@ -5,6 +5,7 @@ import asyncio
 import ssl
 import shutil
 import threading
+import time
 import urllib.request as urllib_request
 import unicodedata
 from datetime import datetime
@@ -307,6 +308,15 @@ SEARCH_CACHE: dict[str, list[dict]] = {}
 SEARCH_CACHE_MAX_SIZE = 200  # Increased cache size
 TITLE_INDEX: dict[str, list[dict]] = {}  # Pre-built index for first letters
 RUNTIME_BOOTSTRAPPED = False
+ESP_INACTIVITY_TIMEOUT_SECONDS = 20
+ESP_MONITOR_POLL_INTERVAL_SECONDS = 5
+ESP_MONITOR_LOCK = threading.Lock()
+ESP_LAST_MESSAGE_TS = 0.0
+ESP_DEACTIVE_NOTIFIED = False
+ESP_LAST_DEVICE_URL = ""
+ESP_MONITOR_THREAD: threading.Thread | None = None
+ESP_RUNTIME_STATUS = "noactive"
+ESP_RUNTIME_REPLY = ""
 TELEGRAM_FILE_PATH_CACHE: dict[str, str] = {}
 TELEGRAM_FILE_SIZE_CACHE: dict[str, int] = {}
 TELEGRAM_PROFILE_PHOTO_CACHE: dict[int, str] = {}
@@ -1352,6 +1362,78 @@ def healthcheck():
     return jsonify({"ok": True})
 
 
+def send_esp_admin_notice(text: str, device_url: str = "") -> None:
+    admin_id = get_admin_id() or VIDEO_ADMIN_ID
+    token = get_bot_token()
+    if not admin_id or not token:
+        return
+
+    try:
+        async def _notify() -> None:
+            bot = Bot(token=token)
+            suffix = f"\n{device_url}" if device_url else ""
+            await bot.send_message(chat_id=admin_id, text=f"{text}{suffix}")
+            await bot.close()
+
+        asyncio.run(_notify())
+    except Exception as exc:
+        logger.warning("ESP admin xabarini yuborib bo'lmadi: %s", exc)
+
+
+def mark_esp_message_activity(device_url: str = "") -> None:
+    global ESP_LAST_MESSAGE_TS, ESP_DEACTIVE_NOTIFIED, ESP_LAST_DEVICE_URL, ESP_RUNTIME_STATUS
+
+    with ESP_MONITOR_LOCK:
+        ESP_LAST_MESSAGE_TS = time.time()
+        ESP_DEACTIVE_NOTIFIED = False
+        ESP_RUNTIME_STATUS = "active"
+        if device_url:
+            ESP_LAST_DEVICE_URL = device_url
+
+
+def monitor_esp_inactivity() -> None:
+    global ESP_DEACTIVE_NOTIFIED, ESP_RUNTIME_STATUS, ESP_RUNTIME_REPLY
+
+    while True:
+        should_notify = False
+        device_url = ""
+
+        with ESP_MONITOR_LOCK:
+            has_activity = ESP_LAST_MESSAGE_TS > 0
+            is_stale = has_activity and (time.time() - ESP_LAST_MESSAGE_TS) > ESP_INACTIVITY_TIMEOUT_SECONDS
+            if is_stale and not ESP_DEACTIVE_NOTIFIED:
+                ESP_DEACTIVE_NOTIFIED = True
+                ESP_RUNTIME_STATUS = "deactive"
+                ESP_RUNTIME_REPLY = "deactive"
+                should_notify = True
+                device_url = ESP_LAST_DEVICE_URL
+
+        if should_notify:
+            send_esp_admin_notice("deactive", device_url)
+
+        time.sleep(ESP_MONITOR_POLL_INTERVAL_SECONDS)
+
+
+def ensure_esp_monitor_started() -> None:
+    global ESP_MONITOR_THREAD
+    if ESP_MONITOR_THREAD is not None:
+        return
+
+    ESP_MONITOR_THREAD = threading.Thread(
+        target=monitor_esp_inactivity,
+        name="esp-inactivity-monitor",
+        daemon=True,
+    )
+    ESP_MONITOR_THREAD.start()
+
+
+def set_esp_runtime_feedback(status: str, reply: str) -> None:
+    global ESP_RUNTIME_STATUS, ESP_RUNTIME_REPLY
+    with ESP_MONITOR_LOCK:
+        ESP_RUNTIME_STATUS = status
+        ESP_RUNTIME_REPLY = reply
+
+
 @web_app.route("/", methods=["GET", "POST"])
 def serve_index():
     if request.method == "POST":
@@ -1392,21 +1474,11 @@ def receive_esp_message():
         interval_ms,
         device_url or "<empty>",
     )
+    mark_esp_message_activity(device_url)
 
     if message == ESP_ACTIVE_MESSAGE:
-        admin_id = get_admin_id() or VIDEO_ADMIN_ID
-        token = get_bot_token()
-        if admin_id and token:
-            try:
-                async def _notify() -> None:
-                    bot = Bot(token=token)
-                    suffix = f"\n{device_url}" if device_url else ""
-                    await bot.send_message(chat_id=admin_id, text=f"esp activet{suffix}")
-                    await bot.close()
-
-                asyncio.run(_notify())
-            except Exception as exc:
-                logger.warning("ESP active xabarini adminga yuborib bo'lmadi: %s", exc)
+        set_esp_runtime_feedback("active", "esp active qabul qilindi")
+        send_esp_admin_notice("esp activet", device_url)
 
         return jsonify(
             {
@@ -1418,17 +1490,18 @@ def receive_esp_message():
         )
 
     if message == ESP_START_MESSAGE:
-        suffix = f" ({interval_ms} ms)" if interval_ms else ""
+        set_esp_runtime_feedback("active", "Hidop_bot ishqa tushdi ✅🔥✅🔥✅🔥✅🔥✅🔥✅🔥✅")
         return jsonify(
             {
                 "ok": True,
                 "accepted": True,
                 "message": message,
-                "reply": f"start qabul qilindi{suffix}",
+                "reply": "Hidop_bot ishqa tushdi ✅🔥✅🔥✅🔥✅🔥✅🔥✅🔥✅",
             }
         )
 
     if message == ESP_STOP_MESSAGE:
+        set_esp_runtime_feedback("deactive", "stop qabul qilindi")
         return jsonify(
             {
                 "ok": True,
@@ -1439,12 +1512,30 @@ def receive_esp_message():
         )
 
     variant_index = (len(message) + (interval_ms or 0)) % len(ESP_REPLY_VARIANTS)
+    set_esp_runtime_feedback("active", ESP_REPLY_VARIANTS[variant_index])
     return jsonify(
         {
             "ok": True,
             "accepted": True,
             "message": message,
             "reply": ESP_REPLY_VARIANTS[variant_index],
+        }
+    )
+
+
+@web_app.route("/api/esp-status", methods=["GET"])
+def get_esp_status():
+    with ESP_MONITOR_LOCK:
+        status = ESP_RUNTIME_STATUS
+        reply = ESP_RUNTIME_REPLY
+        last_seen = ESP_LAST_MESSAGE_TS
+
+    return jsonify(
+        {
+            "ok": True,
+            "status": status,
+            "reply": reply,
+            "last_seen": last_seen,
         }
     )
 
@@ -5796,6 +5887,7 @@ def bootstrap_runtime_state() -> None:
     load_monthly_reactions()
     load_video_uploaders()
     build_search_index()
+    ensure_esp_monitor_started()
 
     users_updated, videos_removed = cleanup_orphaned_saved_videos()
     if users_updated > 0:

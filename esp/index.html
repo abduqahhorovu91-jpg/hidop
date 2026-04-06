@@ -1,12 +1,49 @@
 <!doctype html>
-<html lang="en">
+<html lang="uz">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ESP Sayt</title>
-    <script type="module" src="/src/main.jsx"></script>
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div id="root"></div>
+    <main class="page-shell">
+      <div id="top-alert" class="top-alert is-hidden"></div>
+
+      <section class="panel-grid">
+        <article class="panel panel-primary">
+          <div class="panel-head">
+            <span class="panel-label">Qurilma</span>
+            <span id="device-dot" class="dot"></span>
+          </div>
+
+          <div class="info-row">
+            <div>
+              <span class="meta-label">Holati</span>
+              <strong id="status-value">nofaol</strong>
+            </div>
+          </div>
+
+          <div class="status-grid">
+            <div class="status-card">
+              <span class="meta-label">ESP32 aloqa</span>
+              <strong id="device-state-value">offline</strong>
+            </div>
+            <div class="status-card">
+              <span class="meta-label">Bot holati</span>
+              <strong id="reply-state-value">noactive</strong>
+            </div>
+          </div>
+
+          <div id="message-line" class="message-line">ESP32 hali backendga ulanmagan</div>
+
+          <div class="action-row">
+            <button id="toggle-button" type="button" class="action-button">start</button>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
   </body>
 </html>
